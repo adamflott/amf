@@ -1,8 +1,7 @@
 module AMF.Logging.Types.OutputsInterface
     ( Output(..)
     , HealthCheck(..)
-    )
-where
+    ) where
 
 import           Relude
 

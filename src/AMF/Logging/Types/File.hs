@@ -1,8 +1,7 @@
 module AMF.Logging.Types.File
     ( LogOutputFileWriteMode(..)
     , LogOutputFile(..)
-    )
-where
+    ) where
 
 -- prelude
 import           Relude
@@ -31,7 +30,7 @@ data LogOutputFileWriteMode
     deriving stock (Eq, Generic, Show)
 
 data LogOutputFile = LogOutputFile LogLevel LogFormat (Path Abs File) LogOutputFileWriteMode
-                   deriving stock Show
+    deriving stock Show
 
 
 toIOMode :: LogOutputFileWriteMode -> IOMode

@@ -4,14 +4,16 @@ module Main where
 import           Relude
 
 -- base
-import           Control.Concurrent             ( ThreadId, threadDelay )
+import           Control.Concurrent             ( ThreadId
+                                                , threadDelay
+                                                )
 
 -- Hackage
-import Chronos
-import           Data.Aeson as Aeson
-import Path
-import Codec.Serialise as CBOR
-import qualified Data.Text.Lazy as LText
+import           Chronos
+import           Data.Aeson                    as Aeson
+import           Path
+import           Codec.Serialise               as CBOR
+import qualified Data.Text.Lazy                as LText
 
 -- local
 import           AMF.Logging
@@ -38,32 +40,32 @@ truncateThreadId tid = encodeUtf8 $ fromMaybe "" (LText.stripPrefix "ThreadId " 
 
 instance Eventable EventX where
     toFmt fmt hn ln ts (pid, tid) lvl ev = do
-      let ts' = fmtTime ts
-          tid' = truncateThreadId tid
-      case fmt of
-        LogFormatLine -> case ev of
-            EventA a b  -> Just (ts' <> " " <> tid' <> " A " <> encodeUtf8 a <> " " <> encodeUtf8 b <> "\n")
-            EventB i -> Just (ts' <> " " <> tid' <> " B " <> show i <> "\n")
-        LogFormatJSON -> Just (Aeson.encode ev <> "\n")
-        LogFormatCBOR -> Just (CBOR.serialise ev)
-        LogFormatCSV -> Nothing
+        let ts'  = fmtTime ts
+            tid' = truncateThreadId tid
+        case fmt of
+            LogFormatLine -> case ev of
+                EventA a b -> Just (ts' <> " " <> tid' <> " A " <> encodeUtf8 a <> " " <> encodeUtf8 b <> "\n")
+                EventB i   -> Just (ts' <> " " <> tid' <> " B " <> show i <> "\n")
+            LogFormatJSON -> Just (Aeson.encode ev <> "\n")
+            LogFormatCBOR -> Just (CBOR.serialise ev)
+            LogFormatCSV  -> Nothing
 
 main :: IO ()
 main = do
     let out_stdout = newConsoleOutput LogLevelAll LogFormatLine LogOutputStdOut
         out_stderr = newConsoleOutput LogLevelAll LogFormatJSON LogOutputStdErr
-        f_out = newFileUTF8Output LogLevelAll LogFormatLine $(mkAbsFile "/tmp/a.log") Append
+        f_out      = newFileUTF8Output LogLevelAll LogFormatLine $(mkAbsFile "/tmp/a.log") Append
 
     let los = LogOutputs [out_stdout, out_stderr] [f_out]
 
-    cfg <- newConfig los
+    cfg                       <- newConfig los
 
     (ctx :: LoggerCtx EventX) <- newLoggingCtx cfg
 
-    h <- startLogger ctx
+    h                         <- startLogger ctx
 
-    logEvent ctx LogLevelAll (EventA "たろう" "Иван")
-    logEvent ctx LogLevelAll (EventB 1)
+    logEvent ctx LogLevelAll   (EventA "たろう" "Иван")
+    logEvent ctx LogLevelAll   (EventB 1)
     logEvent ctx LogLevelTerse (EventB 2)
 
     threadDelay 1000000

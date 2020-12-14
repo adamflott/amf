@@ -32,8 +32,7 @@ module AMF.Logging
 
 --    , withLogger
     , module X
-    )
-where
+    ) where
 
 -- prelude
 import           Relude
@@ -47,7 +46,9 @@ import           Control.Lens
 import           Network.HostName               ( getHostName )
 import           System.Posix.Process
 import           System.Posix.User              ( getLoginName )
-import           UnliftIO.Concurrent            ( ThreadId, myThreadId )
+import           UnliftIO.Concurrent            ( ThreadId
+                                                , myThreadId
+                                                )
 import           Control.Concurrent.Async.Lifted
                                                 ( async
                                                 , cancel
@@ -62,7 +63,7 @@ import           AMF.Logging.Types.Outputs
 import           AMF.Logging.Types.OutputsInterface
 import           AMF.Logging.Types.Console
 import           AMF.Logging.Types.File
-import AMF.Logging.Types.Format as X
+import           AMF.Logging.Types.Format      as X
 
 
 import           AMF.Types.FileSystem
@@ -124,7 +125,9 @@ newLoggingCtx dcfg = do
     hn           <- liftIO getHostName
     ln           <- liftIO getLoginName
 
-    pure (LoggerCtx (HostName (toText hn)) (UserName (toText ln)) (ProcessId pid) dcfg ch_int_in ch_int_out ch_ext_in ch_ext_out outs_console outs_file)
+    pure
+        (LoggerCtx (HostName (toText hn)) (UserName (toText ln)) (ProcessId pid) dcfg ch_int_in ch_int_out ch_ext_in ch_ext_out outs_console outs_file
+        )
 
 
 -- | Spawn a thread and start reading from the logging channel.
@@ -159,7 +162,7 @@ stopLogger ctx handle = do
     -- drain
     drainChan ctx
 
-    handles_file    <- readTVarIO (ctx ^. loggingCtxOutputHandlesFile)
+    handles_file <- readTVarIO (ctx ^. loggingCtxOutputHandlesFile)
 
 --    closeOutputs handles_console
     closeOutputs handles_file
@@ -169,8 +172,8 @@ loggerWorker ctx = do
    -- maybe_cmd <- readBChan (ctx ^. loggingCtxIntOutEv)
    -- handleInternalCh ctx maybe_cmd
 
-    let hn = ctx ^. loggingCtxHostName
-        ln = ctx ^. loggingCtxUserName
+    let hn  = ctx ^. loggingCtxHostName
+        ln  = ctx ^. loggingCtxUserName
         pid = ctx ^. loggingCtxProcessId
 
     handles_console <- readTVarIO (ctx ^. loggingCtxOutputHandlesConsole)
@@ -178,13 +181,22 @@ loggerWorker ctx = do
 
     maybe_ev        <- readBChan (ctx ^. loggingCtxExtOutEv)
     case maybe_ev of
-        Nothing                              -> pass
+        Nothing -> pass
         Just (LogEventWithDetails ts tid lvl ev) -> do
             writeOutputs handles_console hn ln ts (pid, tid) lvl ev
             writeOutputs handles_file    hn ln ts (pid, tid) lvl ev
             loggerWorker ctx
 
-writeOutputs :: (Foldable t, Output m a1, Eventable a2) => t (OutputHandle a1) -> HostName -> UserName -> Time -> (ProcessId, ThreadId) -> LogLevel -> a2 -> m ()
+writeOutputs
+    :: (Foldable t, Output m a1, Eventable a2)
+    => t (OutputHandle a1)
+    -> HostName
+    -> UserName
+    -> Time
+    -> (ProcessId, ThreadId)
+    -> LogLevel
+    -> a2
+    -> m ()
 writeOutputs handles hn ln ts (pid, tid) lvl ev = do
     mapM_
         (\h -> do
@@ -198,7 +210,7 @@ closeOutputs :: (Foldable t, Output m a1) => t (OutputHandle a1) -> m ()
 closeOutputs handles = do
     mapM_
         (\h -> do
-                closeOutput h
+            closeOutput h
         )
         handles
 
@@ -243,19 +255,19 @@ logEvent ctx lvl ev = do
 
 drainChan :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Eventable ev, Show ev) => LoggerCtx ev -> m ()
 drainChan ctx = do
-    let ch = ctx ^. loggingCtxExtOutEv
-        hn = ctx ^. loggingCtxHostName
-        ln = ctx ^. loggingCtxUserName
+    let ch  = ctx ^. loggingCtxExtOutEv
+        hn  = ctx ^. loggingCtxHostName
+        ln  = ctx ^. loggingCtxUserName
         pid = ctx ^. loggingCtxProcessId
 
     maybe_ev <- readBChan ch
     case maybe_ev of
-        Nothing                              -> pass
+        Nothing -> pass
         Just (LogEventWithDetails ts tid lvl ev) -> do
             handles_console <- readTVarIO (ctx ^. loggingCtxOutputHandlesConsole)
             handles_file    <- readTVarIO (ctx ^. loggingCtxOutputHandlesFile)
             writeOutputs handles_console hn ln ts (pid, tid) lvl ev
-            writeOutputs handles_file   hn ln  ts (pid, tid) lvl ev
+            writeOutputs handles_file    hn ln ts (pid, tid) lvl ev
             drainChan ctx
 
 

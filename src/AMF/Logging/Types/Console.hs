@@ -1,8 +1,7 @@
 module AMF.Logging.Types.Console
     ( StdOutOrErr(..)
     , LogOutputConsole(..)
-    )
-where
+    ) where
 
 -- prelude
 import           Relude
@@ -17,7 +16,7 @@ import           System.IO                      ( BufferMode(..)
 -- Hackage
 import qualified System.IO.Utf8                as Utf8
 import           Control.Monad.Catch            ( MonadMask )
-import qualified Data.ByteString.Lazy               as BSL
+import qualified Data.ByteString.Lazy          as BSL
 
 -- local
 import           AMF.Logging.Types.Format
@@ -31,7 +30,7 @@ data StdOutOrErr
     deriving stock (Eq, Generic, Show)
 
 data LogOutputConsole = LogOutputConsole LogLevel LogFormat StdOutOrErr Handle
-                      deriving stock Show
+    deriving stock Show
 
 
 instance (MonadIO m, MonadMask m) => Output m LogOutputConsole where
@@ -65,12 +64,11 @@ instance (MonadIO m, MonadMask m) => Output m LogOutputConsole where
         pure Nothing
 
     writeOutput (CHandle handle _) msg = do
-        Utf8.withHandle handle do
-            liftIO (BSL.hPut handle msg)
+        Utf8.withHandle
+            handle
+            do
+                liftIO (BSL.hPut handle msg)
 
     healthCheck (CHandle handle _) = do
-      closed <- liftIO (hIsClosed handle)
-      if closed then
-        pure Drop
-        else
-        pure Continue
+        closed <- liftIO (hIsClosed handle)
+        if closed then pure Drop else pure Continue

@@ -1,10 +1,9 @@
 module AMF.Logging.Outputs.Console
     ( newConsoleOutput
-    )
-where
+    ) where
 
 -- prelude
-import Relude
+import           Relude
 
 -- base
 
@@ -17,7 +16,6 @@ import           AMF.Logging.Types.Console
 
 
 newConsoleOutput :: LogLevel -> LogFormat -> StdOutOrErr -> LogOutputConsole
-newConsoleOutput lvl fmt soe =
-  case soe of
+newConsoleOutput lvl fmt soe = case soe of
     LogOutputStdOut -> LogOutputConsole lvl fmt LogOutputStdOut stdout
     LogOutputStdErr -> LogOutputConsole lvl fmt LogOutputStdErr stderr

@@ -1,7 +1,6 @@
 module AMF.Logging.Types.Format
     ( LogFormat(..)
-    )
-where
+    ) where
 
 import           Relude
 

@@ -28,8 +28,7 @@ module AMF.Logging.Types
     , loggingCtxOutputHandlesConsole
     , loggingCtxOutputHandlesFile
     , loggingCtxOutputs
-    )
-where
+    ) where
 
 -- prelude
 import           Relude
@@ -53,7 +52,7 @@ import           Control.Monad.Catch            ( MonadThrow
                                                 )
 import           Control.Monad.Trans.Resource   ( MonadResource )
 import           Data.Aeson                    as Aeson
-import qualified System.Posix.Types as POSIX
+import qualified System.Posix.Types            as POSIX
 
 -- local
 import           AMF.Logging.Types.Console
@@ -124,11 +123,11 @@ newtype DynamicLoggerConfig = DynamicLoggerConfig (TVar LoggerConfig)
 
 
 -- | Log event. Includes high resolution time with the thread id that generated the event.
-data LogEventWithDetails ev = LogEventWithDetails {
-    _ts  :: !Time,
-    _tid :: !ThreadId,
-    _lvl :: !LogLevel,
-    _lev :: ev
+data LogEventWithDetails ev = LogEventWithDetails
+    { _ts  :: !Time
+    , _tid :: !ThreadId
+    , _lvl :: !LogLevel
+    , _lev :: ev
     }
     deriving stock Show
 
@@ -142,17 +141,17 @@ data LogCmd
 data LogStats = LogStats Int Int
 
 -- | Logger context
-data LoggerCtx ev = LoggerCtx {
-    _loggingCtxHostName   :: !HostName,
-    _loggingCtxUserName   :: !UserName,
-    _loggingCtxProcessId  :: !ProcessId,
-    _loggingCtxCfg        :: !DynamicLoggerConfig,
-    _loggingCtxIntInEv    :: !(BroadcastChan In (LogEventWithDetails LogCmd)),
-    _loggingCtxIntOutEv   :: !(BroadcastChan Out (LogEventWithDetails LogCmd)),
-    _loggingCtxExtInEv    :: !(BroadcastChan In (LogEventWithDetails ev)),
-    _loggingCtxExtOutEv   :: !(BroadcastChan Out (LogEventWithDetails ev)),
-    _loggingCtxOutputHandlesConsole   :: TVar [OutputHandle LogOutputConsole],
-    _loggingCtxOutputHandlesFile   :: TVar [OutputHandle LogOutputFile]
+data LoggerCtx ev = LoggerCtx
+    { _loggingCtxHostName             :: !HostName
+    , _loggingCtxUserName             :: !UserName
+    , _loggingCtxProcessId            :: !ProcessId
+    , _loggingCtxCfg                  :: !DynamicLoggerConfig
+    , _loggingCtxIntInEv              :: !(BroadcastChan In (LogEventWithDetails LogCmd))
+    , _loggingCtxIntOutEv             :: !(BroadcastChan Out (LogEventWithDetails LogCmd))
+    , _loggingCtxExtInEv              :: !(BroadcastChan In (LogEventWithDetails ev))
+    , _loggingCtxExtOutEv             :: !(BroadcastChan Out (LogEventWithDetails ev))
+    , _loggingCtxOutputHandlesConsole :: TVar [OutputHandle LogOutputConsole]
+    , _loggingCtxOutputHandlesFile    :: TVar [OutputHandle LogOutputFile]
     }
 
 makeLenses ''LoggerCtx

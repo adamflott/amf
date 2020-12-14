@@ -7,7 +7,7 @@ import           Relude
 import qualified System.Environment            as IO
 
 -- Hackage
-import           Control.Exception.Safe        (  tryIO                                                )
+import           Control.Exception.Safe         ( tryIO )
 
 
 class Monad m => MonadEnv m where
@@ -38,24 +38,24 @@ class Monad m => MonadEnv m where
 
 instance MonadEnv IO where
     isEnvVar var = do
-      maybe_val <- IO.lookupEnv (toString var)
-      case maybe_val of
-        Nothing -> pure False
-        Just _ -> pure True
+        maybe_val <- IO.lookupEnv (toString var)
+        case maybe_val of
+            Nothing -> pure False
+            Just _  -> pure True
 
     getEnvVar var def = do
-      maybe_val <- IO.lookupEnv (toString var)
-      case maybe_val of
-        Nothing -> pure def
-        Just val -> pure (toText val)
+        maybe_val <- IO.lookupEnv (toString var)
+        case maybe_val of
+            Nothing  -> pure def
+            Just val -> pure (toText val)
 
     getEnvironment = fmap (\(a1, a2) -> (toText a1, toText a2)) <$> IO.getEnvironment
 
     setEnvVar name val = do
-      void $ tryIO $ IO.setEnv (toString name) (toString val)
+        void $ tryIO $ IO.setEnv (toString name) (toString val)
 
     unsetEnvVar var = do
-      void $ tryIO $ IO.unsetEnv (toString var)
+        void $ tryIO $ IO.unsetEnv (toString var)
 
 
 instance MonadEnv m => MonadEnv (ReaderT r m)
@@ -70,7 +70,7 @@ class Monad m => MonadArguments m where
   getArgs = lift getArgs
 
 instance MonadArguments IO where
-  getArgs = fmap toText <$> IO.getArgs
+    getArgs = fmap toText <$> IO.getArgs
 
 instance MonadArguments m => MonadArguments (ReaderT r m)
 instance MonadArguments m => MonadArguments (StateT r m)

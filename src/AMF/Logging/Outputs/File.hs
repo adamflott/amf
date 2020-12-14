@@ -1,9 +1,9 @@
 module AMF.Logging.Outputs.File
-    (   newFileUTF8Output)
-where
+    ( newFileUTF8Output
+    ) where
 
 -- prelude
-import           Relude ()
+import           Relude                         ( )
 
 -- base
 

@@ -1,21 +1,25 @@
 module AMF.Types.FileSystem where
 
 -- prelude
-import           Relude hiding (readFile, writeFile)
+import           Relude                  hiding ( readFile
+                                                , writeFile
+                                                )
 
 -- base
 
 -- Hackage
-import Path
-import qualified Path.IO as PIO
-import qualified System.IO.Utf8 as Utf8
+import           Path
+import qualified Path.IO                       as PIO
+import qualified System.IO.Utf8                as Utf8
 import           Control.Exception.Safe        as X
                                                 ( IOException
                                                 , tryIO
                                                 )
 import           Control.Monad.Catch
-import qualified System.IO.Utf8 (openFile)
-import qualified Data.Text.IO.Utf8 (readFile, writeFile)
+import qualified System.IO.Utf8                 ( openFile )
+import qualified Data.Text.IO.Utf8              ( readFile
+                                                , writeFile
+                                                )
 
 --import qualified Control.Exception.Safe        as Exception
 import qualified System.Directory
@@ -63,25 +67,25 @@ instance MonadFileSystemRead IO where
             Right es -> pure (Right es)
 
     getHomeDirectory = do
-      hd <- System.Directory.getHomeDirectory
-      parseAbsDir hd
+        hd <- System.Directory.getHomeDirectory
+        parseAbsDir hd
 
     getCurrentDirectory = do
-      cwd <- System.Directory.getCurrentDirectory
-      parseAbsDir cwd
+        cwd <- System.Directory.getCurrentDirectory
+        parseAbsDir cwd
 
     getTemporaryDirectory = do
-      td <- System.Directory.getTemporaryDirectory
-      parseAbsDir td
+        td <- System.Directory.getTemporaryDirectory
+        parseAbsDir td
 
-makeAbsolute :: (MonadThrow m, ToString a, MonadFileSystemRead m) =>  a -> m (Path Abs Dir)
+makeAbsolute :: (MonadThrow m, ToString a, MonadFileSystemRead m) => a -> m (Path Abs Dir)
 makeAbsolute path = do
-  b   <- parseSomeDir (toString path)
-  cwd <- getCurrentDirectory
-  let y = case b of
+    b   <- parseSomeDir (toString path)
+    cwd <- getCurrentDirectory
+    let y = case b of
             Abs p -> p
             Rel p -> cwd </> p
-  pure y
+    pure y
 
 -- Write -----------------------------------------------------------------------
 
@@ -118,20 +122,20 @@ instance MonadFileSystemWrite IO where
     openFile path mode = tryIO (Utf8.openFile (toString (toFilePath path)) mode)
 
     closeFile fh = do
-      r <- tryIO (System.IO.hClose fh)
-      case r of
-        Left err -> pure (Just err)
-        Right _ -> pure Nothing
+        r <- tryIO (System.IO.hClose fh)
+        case r of
+            Left  err -> pure (Just err)
+            Right _   -> pure Nothing
 
     writeFile path contents = (pure (Right "write blah"))
 
     createDirectory dir = tryIO (PIO.createDirIfMissing True dir)
 
     createDirIfMissing create_parents dir = do
-      r <- tryIO (PIO.createDirIfMissing create_parents dir)
-      case r of
-        Left err -> pure (Just err)
-        _ -> pure Nothing
+        r <- tryIO (PIO.createDirIfMissing create_parents dir)
+        case r of
+            Left err -> pure (Just err)
+            _        -> pure Nothing
 
 -- Read & Write -----------------------------------------------------------------
 

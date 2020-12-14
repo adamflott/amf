@@ -1,8 +1,7 @@
 module AMF.Logging.Types.Level
     ( LogLevel(..)
     , fmtLevel
-    )
-where
+    ) where
 
 import           Relude
 
@@ -15,6 +14,6 @@ data LogLevel
 
 fmtLevel :: IsString a => LogLevel -> a
 fmtLevel = \case
-    LogLevelTerse -> "T"
+    LogLevelTerse   -> "T"
     LogLevelVerbose -> "V"
-    LogLevelAll -> "A"
+    LogLevelAll     -> "A"
