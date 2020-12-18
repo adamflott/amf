@@ -10,6 +10,7 @@ import qualified Network.HostName
 import qualified System.Posix.Resource         as PR
 import qualified System.Posix.User             as User
 import qualified System.Statgrab               as Statgrab
+import           Path
 
 -- local
 import           AMF.Types.SystemInfo
@@ -41,7 +42,15 @@ getUser :: MonadIO m => m User
 getUser = do
     uid <- liftIO User.getRealUserID
     ue  <- liftIO (User.getUserEntryForID uid)
-    pure (User (toText (User.userName ue)) (User.userID ue) (User.userGroupID ue) (toText (User.userGecos ue)) (Nothing) (Nothing))
+
+    pure
+        (User (toText (User.userName ue))
+              (User.userID ue)
+              (User.userGroupID ue)
+              (toText (User.userGecos ue))
+              (parseAbsDir (User.homeDirectory ue))
+              (parseAbsFile (User.userShell ue))
+        )
 
 getSystemFileSystemStats :: MonadIO m => m [Statgrab.FileSystem]
 getSystemFileSystemStats = Statgrab.runStats Statgrab.snapshots
