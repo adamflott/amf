@@ -4,6 +4,7 @@ module AMF.Executor.Common where
 import           Relude
 
 -- base
+import           Data.Version                   ( Version )
 
 -- Hackage
 import           BroadcastChan
@@ -15,6 +16,10 @@ import           AMF.Types.Environment
 import           AMF.Types.FileSystem
 import           AMF.Types.Executor
 
+import           Paths_amf
+
+amfVersion :: Version
+amfVersion = Paths_amf.version
 
 init :: (MonadIO m, MonadEnv m, MonadArguments m, MonadFileSystemRead m, MonadTime m) => m RunCtx
 init = do
