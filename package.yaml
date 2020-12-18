@@ -148,16 +148,6 @@ library:
   source-dirs: src
 
 executables:
-  amf-exe:
-    main:                Main.hs
-    source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - amf
-
   amf-daemon:
     main:                Daemon.hs
     source-dirs:         examples
