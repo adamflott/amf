@@ -38,7 +38,15 @@ toIOMode = \case
     Append    -> AppendMode
     Overwrite -> WriteMode
 
+data E
+    = E1
+    | E2
+    deriving stock (Show)
+    deriving (IsString)
+
 instance (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m) => Output m LogOutputFile where
+    type Error LogOutputFile = E
+    
     data OutputHandle LogOutputFile = FHandle Handle LogFormat
 
     outputFormat (FHandle _ fmt) = pure fmt

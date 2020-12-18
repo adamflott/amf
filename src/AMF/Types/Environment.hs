@@ -11,6 +11,11 @@ import           Control.Exception.Safe         ( tryIO )
 
 
 class Monad m => MonadEnv m where
+  getProgName :: m Text
+
+  default getProgName :: (MonadTrans t, MonadEnv m', m ~ t m') => m Text
+  getProgName = lift getProgName
+
   isEnvVar :: Text -> m Bool
   getEnvVar :: Text -> Text -> m Text
   getEnvironment :: m [(Text, Text)]
@@ -37,6 +42,9 @@ class Monad m => MonadEnv m where
 
 
 instance MonadEnv IO where
+    getProgName = do
+        toText <$> IO.getProgName
+
     isEnvVar var = do
         maybe_val <- IO.lookupEnv (toString var)
         case maybe_val of

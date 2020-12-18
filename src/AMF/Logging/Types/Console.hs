@@ -34,6 +34,8 @@ data LogOutputConsole = LogOutputConsole LogLevel LogFormat StdOutOrErr Handle
 
 
 instance (MonadIO m, MonadMask m) => Output m LogOutputConsole where
+    type Error LogOutputConsole = Text
+    
     data OutputHandle LogOutputConsole = CHandle Handle LogFormat
 
     outputFormat (CHandle _ fmt) = pure fmt

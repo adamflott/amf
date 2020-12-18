@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 110a714ed209138721d0795614f7b80ebf996fae871dcf27b17ff41da8923d9c
+-- hash: 1664492a349e550feaef6d4944ff9cbc4a8d93117b21fd2bd8525551b4bec481
 
 name:           amf
 version:        0.0.1
@@ -27,7 +27,13 @@ source-repository head
 
 library
   exposed-modules:
+      AMF.API
+      AMF.API.SystemInfo
       AMF.App
+      AMF.Events
+      AMF.Executor.AppBattery
+      AMF.Executor.Common
+      AMF.Executor.Daemon
       AMF.Logging
       AMF.Logging.Outputs.Console
       AMF.Logging.Outputs.File
@@ -39,13 +45,14 @@ library
       AMF.Logging.Types.Outputs
       AMF.Logging.Types.OutputsInterface
       AMF.Types.Environment
+      AMF.Types.Executor
       AMF.Types.FileSystem
       AMF.Types.SystemInfo
   other-modules:
       Paths_amf
   hs-source-dirs:
       src
-  default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns
+  default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns UndecidableInstances
   ghc-options: -Wall -O -fwarn-unused-imports -fhide-source-paths -Widentities -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Wpartial-fields -fwrite-ide-info -hiedir=.hie -Wmissing-deriving-strategies
   build-depends:
       Glob
@@ -86,6 +93,7 @@ library
     , prettyprinter
     , relude >=0.7.0.0
     , resourcet
+    , retry
     , safe-exceptions
     , serialise
     , split
@@ -94,6 +102,7 @@ library
     , temporary
     , text
     , time
+    , transformers
     , transformers-base
     , typed-process
     , unagi-chan
@@ -104,13 +113,13 @@ library
     , with-utf8
   default-language: Haskell2010
 
-executable amf-exe
-  main-is: Main.hs
+executable amf-daemon
+  main-is: Daemon.hs
   other-modules:
       Paths_amf
   hs-source-dirs:
-      app
-  default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns
+      examples
+  default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns UndecidableInstances
   ghc-options: -Wall -O -fwarn-unused-imports -fhide-source-paths -Widentities -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Wpartial-fields -fwrite-ide-info -hiedir=.hie -Wmissing-deriving-strategies -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Glob
@@ -152,6 +161,7 @@ executable amf-exe
     , prettyprinter
     , relude >=0.7.0.0
     , resourcet
+    , retry
     , safe-exceptions
     , serialise
     , split
@@ -160,6 +170,75 @@ executable amf-exe
     , temporary
     , text
     , time
+    , transformers
+    , transformers-base
+    , typed-process
+    , unagi-chan
+    , unix
+    , unliftio
+    , unordered-containers
+    , vty
+    , with-utf8
+  default-language: Haskell2010
+
+executable amf-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_amf
+  hs-source-dirs:
+      app
+  default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns UndecidableInstances
+  ghc-options: -Wall -O -fwarn-unused-imports -fhide-source-paths -Widentities -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Wpartial-fields -fwrite-ide-info -hiedir=.hie -Wmissing-deriving-strategies -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      Glob
+    , HsYAML
+    , SHA
+    , aeson
+    , amf
+    , async
+    , base >=4.14 && <5.0
+    , broadcast-chan
+    , bytestring
+    , cassava
+    , chronos
+    , clock
+    , containers
+    , data-has
+    , directory
+    , dlist
+    , docker
+    , dockerfile-creator
+    , exceptions
+    , filepath
+    , hedgehog
+    , hostname
+    , hxt
+    , ip
+    , language-docker
+    , lens
+    , lifted-async
+    , megaparsec
+    , monad-control
+    , mtl
+    , network
+    , optparse-applicative >=0.16.0.0
+    , ordered-containers
+    , path >=0.8.0
+    , path-io
+    , pretty-simple
+    , prettyprinter
+    , relude >=0.7.0.0
+    , resourcet
+    , retry
+    , safe-exceptions
+    , serialise
+    , split
+    , statgrab
+    , stm
+    , temporary
+    , text
+    , time
+    , transformers
     , transformers-base
     , typed-process
     , unagi-chan
@@ -177,7 +256,7 @@ test-suite amf-test
       Paths_amf
   hs-source-dirs:
       test
-  default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns
+  default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns UndecidableInstances
   ghc-options: -Wall -O -fwarn-unused-imports -fhide-source-paths -Widentities -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Wpartial-fields -fwrite-ide-info -hiedir=.hie -Wmissing-deriving-strategies -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Glob
@@ -219,6 +298,7 @@ test-suite amf-test
     , prettyprinter
     , relude >=0.7.0.0
     , resourcet
+    , retry
     , safe-exceptions
     , serialise
     , split
@@ -227,6 +307,7 @@ test-suite amf-test
     , temporary
     , text
     , time
+    , transformers
     , transformers-base
     , typed-process
     , unagi-chan
