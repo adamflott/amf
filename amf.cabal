@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7f04af09a871128eba36b5e9cd31ec978830b694f4b8388dd69f764c4922f35e
+-- hash: 0519c54dc7fefe65e4d84f282afac396ced5f0a798262bedd2ca6fd3a907e21a
 
 name:           amf
 version:        0.0.1
@@ -29,11 +29,11 @@ library
   exposed-modules:
       AMF.API
       AMF.API.SystemInfo
-      AMF.App
       AMF.Events
       AMF.Executor.AppBattery
       AMF.Executor.Common
       AMF.Executor.Daemon
+      AMF.Executor.Kubernetes
       AMF.Logging
       AMF.Logging.Outputs.Console
       AMF.Logging.Outputs.File
@@ -44,6 +44,7 @@ library
       AMF.Logging.Types.Level
       AMF.Logging.Types.Outputs
       AMF.Logging.Types.OutputsInterface
+      AMF.Types.Common
       AMF.Types.Environment
       AMF.Types.Executor
       AMF.Types.FileSystem
@@ -78,6 +79,8 @@ library
     , hostname
     , hxt
     , ip
+    , kubernetes-client
+    , kubernetes-client-core
     , language-docker
     , lens
     , lifted-async
@@ -102,6 +105,7 @@ library
     , temporary
     , text
     , time
+    , tls
     , transformers
     , transformers-base
     , typed-process
@@ -146,6 +150,8 @@ executable amf-daemon
     , hostname
     , hxt
     , ip
+    , kubernetes-client
+    , kubernetes-client-core
     , language-docker
     , lens
     , lifted-async
@@ -170,6 +176,7 @@ executable amf-daemon
     , temporary
     , text
     , time
+    , tls
     , transformers
     , transformers-base
     , typed-process
@@ -215,6 +222,8 @@ test-suite amf-test
     , hostname
     , hxt
     , ip
+    , kubernetes-client
+    , kubernetes-client-core
     , language-docker
     , lens
     , lifted-async
@@ -239,6 +248,7 @@ test-suite amf-test
     , temporary
     , text
     , time
+    , tls
     , transformers
     , transformers-base
     , typed-process

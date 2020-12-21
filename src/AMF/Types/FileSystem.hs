@@ -16,12 +16,6 @@ import           Control.Exception.Safe        as X
                                                 , tryIO
                                                 )
 import           Control.Monad.Catch
-import qualified System.IO.Utf8                 ( openFile )
-import qualified Data.Text.IO.Utf8              ( readFile
-                                                , writeFile
-                                                )
-
---import qualified Control.Exception.Safe        as Exception
 import qualified System.Directory
 import qualified System.IO
 

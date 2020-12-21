@@ -66,10 +66,7 @@ instance (MonadIO m, MonadMask m) => Output m LogOutputConsole where
         pure Nothing
 
     writeOutput (CHandle handle _) msg = do
-        Utf8.withHandle
-            handle
-            do
-                liftIO (BSL.hPut handle msg)
+        Utf8.withHandle handle (liftIO (BSL.hPut handle msg))
 
     healthCheck (CHandle handle _) = do
         closed <- liftIO (hIsClosed handle)

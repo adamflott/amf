@@ -8,8 +8,12 @@ import           Control.Concurrent             ( threadDelay )
 import           System.Exit
 
 -- Hackage
+import           Codec.Serialise               as CBOR
+import           Control.Concurrent.Async
 import           Control.Lens
+import           Control.Monad.Catch            ( MonadMask )
 import           Options.Applicative
+import qualified Data.Aeson                    as Aeson
 import qualified System.Posix                  as Posix
 
 -- local
@@ -17,7 +21,12 @@ import           AMF.API
 import           AMF.Events
 import           AMF.Executor.Daemon
 import           AMF.Types.Executor
-
+import           AMF.Logging.Types
+import           AMF.Logging.Outputs.Console
+import           AMF.Logging.Types.Format
+import           AMF.Logging.Types.Level
+import           AMF.Logging.Types.Console
+import           AMF.Types.Common
 
 data DaemonType
     = DaemonTypeTraditional
@@ -47,67 +56,109 @@ optSpec = Options <$> (dtTrad <|> dtK8s)
 
 --------------------------------------------------------------------------------
 
-sigHandler :: RunCtx -> Posix.Handler
-sigHandler run_ctx = Posix.CatchInfo $ \(Posix.SignalInfo s errno si) -> do
-    _ <- writeEventQueue (run_ctx ^. runCtxEventIn) (AMFEvSig (UnixSignal s))
-    putTextLn "hi from signal"
-    print s
-
+sigHandler :: RunCtx EventX -> Posix.Signal -> IO ()
+sigHandler run_ctx _sig = do
+    logEvent run_ctx LogLevelTerse (EventB 1)
     pass
 
 --------------------------------------------------------------------------------
 
-type AppConstraints m = (MonadIO m, MonadTime m, MonadUnixSignals m, MonadEventQueueRead m)
+data EventX
+    = EventA Text Text
+    | EventB Int
+    deriving stock (Generic, Show)
+    deriving anyclass (Serialise, Aeson.ToJSON)
 
-myAppSetup :: (AppConstraints m, Num a, Executor e) => e -> RunCtx -> Options -> m (Either ExitCode a)
-myAppSetup exec run_ctx opts = do
-    putTextLn "in setup"
-    print opts
 
-    print (fsDirRoot exec)
-    print (fsDirMetadata exec)
 
-    putTextLn "install sig handler"
+instance Eventable EventX where
+    toFmt fmt hn ln ts (pid, tid) lvl ev = case fmt of
+        LogFormatLine -> Just (defaultLinePrefixFormatter hn ln ts (pid, tid) lvl <+> daemonEvLineFmt ev)
+        LogFormatJSON -> Just (Aeson.encode ev <> "\n")
+        LogFormatCBOR -> Just (CBOR.serialise ev)
+        LogFormatCSV  -> Nothing
+
+daemonEvLineFmt :: EventX -> LByteString
+daemonEvLineFmt ev = evFmt ev <> "\n"
+  where
+    evFmt = \case
+        EventA t1 t2 -> "t1:" <> show t1 <+> "t2:" <> show t2
+        EventB i1    -> "i1:" <> show i1
+
+--------------------------------------------------------------------------------
+
+type AppConstraints m
+    = ( MonadIO m
+      , MonadMask m
+      , MonadFail m
+      , MonadTime m
+      , MonadEventLogger m
+      , MonadLoggerConsoleAdd m
+      , MonadUnixSignals m
+      , MonadUnixSignalsRaise m
+      , MonadEventQueueRead m
+      , MonadEventQueueListen m
+      )
+
+
+myAppSetup :: (AppConstraints m, Executor e) => e -> RunCtx EventX -> Options -> m (Either ExitCode Int)
+myAppSetup exec run_ctx _opts = do
+    let log_ctx = run_ctx ^. runCtxLogger
+
+    -- TODO eliminate Either
+    Right logger_stdout <- newConsoleOutput LogLevelAll LogFormatLine LogOutputStdOut
+
+    addLogger log_ctx logger_stdout
+    logEvent run_ctx LogLevelTerse (EventB 1)
+
+    logExecutorFsEntries run_ctx exec
+
     addSignalHandler run_ctx [Posix.sigHUP, Posix.sigTERM, Posix.sigINT] sigHandler
-    putTextLn "done installing sig handler"
+    raiseSignal run_ctx Posix.sigHUP
 
-    liftIO $ Posix.raiseSignal Posix.sigHUP
-
-    liftIO $ threadDelay 1000000
     --pure (Left (ExitFailure 10))
     pure (Right 100)
 
+heartbeat :: AppConstraints m => RunCtx EventX -> m ()
+heartbeat run_ctx = do
+  --  logEvent run_ctx LogLevelTerse (EventA "1" "2")
+    liftIO $ threadDelay 1000000
+    heartbeat run_ctx
 
-myAppMain :: (AppConstraints m, Show v) => RunCtx -> v -> m ()
-myAppMain run_ctx v = do
-    putTextLn "in main"
-    print v
-
-    loop (run_ctx ^. runCtxEventOut)
+myAppMain :: (AppConstraints m) => RunCtx EventX -> v -> m ()
+myAppMain run_ctx _ = do
+    heartbeat_h <- liftIO $ async (heartbeat run_ctx)
+    ch          <- listenEventQueue run_ctx
+    loop ch heartbeat_h
   where
-    loop ch_out = do
-        maybe_ev <- readEventQueue ch_out
+    cleanup heartbeat_h = do
+        liftIO $ cancel heartbeat_h
+
+    loop ch heartbeat_h = do
+        maybe_ev <- readEventQueue ch
         case maybe_ev of
-            Nothing -> do
-                pass
-            Just ev -> do
-                print ev
-                case ev of
-                    AMFEvSig (UnixSignal sig) -> do
-                        if
-                            | sig == Posix.sigHUP -> do
-                                loop ch_out
-                            | sig == Posix.sigINT -> pass
-                            | sig == Posix.sigTERM -> pass
-                            | otherwise -> loop ch_out
-                    _ -> do
-                        loop ch_out
+            Nothing                             -> pass
+            Just (LogEventWithDetails _ _ _ ev) -> case ev of
+                LogCmdAddAMFEv ev_amf -> do
+                    case ev_amf of
+                        (AMFEvSigReceived (UnixSignal sig)) -> do
+                            if
+                                | sig == Posix.sigHUP -> do
+                                    loop ch heartbeat_h
+                                | sig == Posix.sigINT -> do
+                                    cleanup heartbeat_h
+                                    pass
+                                | sig == Posix.sigTERM -> do
+                                    cleanup heartbeat_h
+                                    pass
+                                | otherwise -> loop ch heartbeat_h
+                        _ -> loop ch heartbeat_h
+                ev2 -> do
+                    print ev2
+                    loop ch heartbeat_h
 
-
-myAppFinish :: (AppConstraints m, Show v) => RunCtx -> v -> m ()
-myAppFinish _run_ctx v = do
-    putTextLn "in finish"
-    print v
+myAppFinish :: (AppConstraints m) => RunCtx e -> v -> m ()
+myAppFinish _run_ctx _ = do
     pass
 
 
@@ -117,4 +168,4 @@ main :: IO ()
 main = parseOpts >>= chooseExecutor
   where
     chooseExecutor opts@(Options DaemonTypeTraditional) = runDaemon myAppSetup myAppMain myAppFinish opts
-    chooseExecutor opts@(Options DaemonTypeKubernetes ) = undefined
+    chooseExecutor (     Options DaemonTypeKubernetes ) = pass

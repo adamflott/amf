@@ -113,6 +113,9 @@ dependencies:
 - ip
 - lens
 - lifted-async
+- kubernetes-client
+- kubernetes-client-core
+- tls
 - megaparsec
 - mtl
 - monad-control
