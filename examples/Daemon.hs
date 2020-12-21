@@ -111,7 +111,7 @@ myAppSetup exec run_ctx _opts = do
     addLogger log_ctx logger_stdout
     logEvent run_ctx LogLevelTerse (EventB 1)
 
-    logExecutorFsEntries run_ctx exec
+    logAllSysInfo run_ctx exec
 
     addSignalHandler run_ctx [Posix.sigHUP, Posix.sigTERM, Posix.sigINT] sigHandler
     raiseSignal run_ctx Posix.sigHUP

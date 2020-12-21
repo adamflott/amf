@@ -1,9 +1,14 @@
 module AMF.Types.SystemInfo
     ( User(..)
+
     , StatGrabInfo(..)
+    , HasStatGrabInfo(..)
+
     , SystemInfo(..)
-    , ResourceLimits(..)
     , HasSystemInfo(..)
+
+    , ResourceLimits(..)
+
     ) where
 
 -- prelude
@@ -29,7 +34,7 @@ data User = User
     , _userHomeDirectory :: Maybe (Path Abs Dir)
     , _userShell         :: Maybe (Path Abs File)
     }
-    deriving stock Show
+    deriving stock (Generic, Show)
 
 makeClassy ''User
 
@@ -40,7 +45,7 @@ data StatGrabInfo = StatGrabInfo
     , _statGrabInfoHostNet    :: ![Statgrab.NetworkInterface]
     , _statGrabInfoUser       :: !User
     }
-    deriving stock Show
+    deriving stock (Generic, Show)
 
 makeClassy ''StatGrabInfo
 
@@ -54,6 +59,7 @@ data ResourceLimits = ResourceLimits
     , _resourceLimitsStackSize    :: (PR.ResourceLimit, PR.ResourceLimit)
     , _resourceLimitsTotalMemory  :: (PR.ResourceLimit, PR.ResourceLimit)
     }
+    deriving stock Generic
 
 instance Show ResourceLimits where
     show rl = mconcat
@@ -84,6 +90,6 @@ data SystemInfo = SystemInfo
     , _systemInfoStats           :: !StatGrabInfo
     , _systemInfoResourceLimits  :: !ResourceLimits
     }
-    deriving stock Show
+    deriving stock (Generic, Show)
 
 makeClassy ''SystemInfo
