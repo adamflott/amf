@@ -107,6 +107,7 @@ dependencies:
 - Glob
 - exceptions
 - filepath
+- fsnotify
 - hedgehog
 - hostname
 - hxt

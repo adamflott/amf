@@ -26,6 +26,7 @@ import qualified Data.Aeson                    as Aeson
 import qualified Data.Text.Lazy                as LText
 import qualified System.Posix                  as Posix
 import qualified System.Posix.Resource         as PR
+import           System.FSNotify
 
 -- local
 import           AMF.Logging.Types.Format
@@ -52,7 +53,6 @@ data AMFEvent
     | AMFEvSysNetInfo
     | AMFEvSysLimitInfo ResourceLimits
     | AMFEvSysCompilerInfo Text Version
-
     | AMFEvRunTimeInfo
 
     | AMFEvPhase Phase
@@ -60,17 +60,27 @@ data AMFEvent
     | AMFEvSigReceived UnixSignal
     | AMFEvSigSent UnixSignal
 
+    | AMFEvFSNotifyWatch Text
+    | AMFEvFSNotifyUnWatch Text
+    | AMFEvFSEntry Text Text
+
     | AMFEvLogEventOpen
     | AMFEvLogEventClose
     | AMFEvLogEventCmdRotate
     | AMFEvLogEventRotated
     | AMFEvLogEventRotating
 
-    | AMFEvFSEntry Text Text
+    | AMFEvConfigFSEvent FSEvent
+    | AMFEvConfigParse
+    | AMFEvConfigRead
+    | AMFEvConfigStore
     deriving stock (Generic, Show)
     deriving anyclass (Serialise, Aeson.ToJSON)
 
 
+deriving stock instance Generic FSEvent
+deriving anyclass instance Serialise FSEvent
+deriving anyclass instance Aeson.ToJSON FSEvent
 
 
 deriving stock instance Generic PR.ResourceLimit
@@ -141,22 +151,33 @@ amfEvLineFmt ev = "amf:" <> evFmt ev <> "\n"
         AMFEvSysNetInfo                -> "info.net"
         AMFEvSysLimitInfo rls          -> "info.limits" <+> evRL rls
         AMFEvSysCompilerInfo name vers -> "info.compiler name:" <> show name <+> "version:" <> encodeUtf8 (Data.Version.showVersion vers)
+        AMFEvRunTimeInfo               -> "info.runtime"
 
-        AMFEvPhase       phase         -> "phase:" <> show phase
+        AMFEvPhase           phase     -> "phase:" <> show phase
 
-        AMFEvSigReceived sig           -> "signal.received:" <> show sig
-        AMFEvSigSent     sig           -> "signal.sent:" <> show sig
+        AMFEvSigReceived     sig       -> "signal.received:" <> show sig
+        AMFEvSigSent         sig       -> "signal.sent:" <> show sig
+
+        AMFEvFSNotifyWatch   fp        -> "fs.notify.watch path:" <> show fp
+        AMFEvFSNotifyUnWatch fp        -> "fs.notify.unwatch path:" <> show fp
+        AMFEvFSEntry name path         -> "fs.path name:" <> show name <+> "path:" <> show path
 
         AMFEvLogEventOpen              -> "log.open"
         AMFEvLogEventClose             -> "log.close"
         AMFEvLogEventCmdRotate         -> "log.rotate"
         AMFEvLogEventRotating          -> "log.rotating"
         AMFEvLogEventRotated           -> "log.rotated"
-        AMFEvFSEntry name path         -> "fs.path name:" <> show name <+> "path:" <> show path
+
+        AMFEvConfigFSEvent fs_ev       -> "config.fs.event" <+> show fs_ev
+        AMFEvConfigRead                -> "config.read"
+        AMFEvConfigParse               -> "config.parse"
+        AMFEvConfigStore               -> "config.store"
+
 
 
 --------------------------------------------------------------------------------
 
+evRL :: (Monoid a, IsString a) => ResourceLimits -> a
 evRL rl = do
     mconcat
         [ "core:" <> showRLimits (_resourceLimitsCoreFileSize rl)

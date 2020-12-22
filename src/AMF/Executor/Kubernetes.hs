@@ -1,12 +1,18 @@
 module AMF.Executor.Kubernetes where
 
-import Relude
+import           Relude
 
+-- base
 --import Data.Function          ((&))
-import Kubernetes.Client      (KubeConfigSource (..), mkKubeClientConfig)
+
+-- Hackage
+import           Path
+import           Kubernetes.Client              ( KubeConfigSource(..)
+                                                , mkKubeClientConfig
+                                                )
 --import Kubernetes.OpenAPI     (Accept (..), MimeJSON (..), dispatchMime)
 --import Network.TLS            (credentialLoadX509)
-import qualified Data.Map.Strict as Map
+import qualified Data.Map.Strict               as Map
 
 import           AMF.Types.Executor
 --import           AMF.Executor.Common           as Common
@@ -15,27 +21,41 @@ import           AMF.Types.Executor
 --import           AMF.Events
 
 data K8s = K8s
+    { _appName :: Text
+    }
 
 instance Executor K8s where
+    fsDirRoot (K8s app_name) = parseAbsDir (toString ("/" <> app_name))
 
-  initExec _ = do
-    oidcCache <- atomically $ newTVar Map.empty
-    (_mgr, _kcfg) <- liftIO (mkKubeClientConfig oidcCache KubeConfigCluster)
+    fsDirMetadata _ = Just [reldir|etc|]
+    fsDirLogs _ = Just [reldir|var/logs|]
 
-    pure (Right K8s)
+    fsFileAppInfo _ = Nothing
+
+    fsDirCache _ = Just [reldir|var/cache|]
+
+    initExec _ = do
+        oidcCache     <- atomically $ newTVar Map.empty
+        (_mgr, _kcfg) <- liftIO (mkKubeClientConfig oidcCache KubeConfigCluster)
+
+        pure (Right (K8s "TODO"))
+
+    setupExec _ _ = pure (Left "TODO")
+
+    finishExec _ _ = pure (Left "TODO")
 
 {-
-redis@dpm-mpulse-raas-pod-0:/$ ls -al /var/run/secrets/
+$ ls -al /var/run/secrets/
 total 16
 drwxr-xr-t 1 root root 4096 Dec 11 19:26 .
 drwxr-xr-x 1 root root 4096 Oct 29 17:55 ..
 drwxr-xr-x 3 root root 4096 Dec 11 19:26 kubernetes.io
-redis@dpm-mpulse-raas-pod-0:/$ ls -al /var/run/secrets/kubernetes.io/
+$ ls -al /var/run/secrets/kubernetes.io/
 total 8
 drwxr-xr-x 3 root root 4096 Dec 11 19:26 .
 drwxr-xr-t 1 root root 4096 Dec 11 19:26 ..
 drwxrwsrwt 3 root 1337  140 Dec 11 19:26 serviceaccount
-redis@dpm-mpulse-raas-pod-0:/$ ls -al /var/run/secrets/kubernetes.io/serviceaccount/
+$ ls -al /var/run/secrets/kubernetes.io/serviceaccount/
 total 4
 drwxrwsrwt 3 root 1337  140 Dec 11 19:26 .
 drwxr-xr-x 3 root root 4096 Dec 11 19:26 ..

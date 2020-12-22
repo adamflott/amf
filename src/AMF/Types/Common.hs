@@ -9,7 +9,7 @@ import           Text.Show                      ( Show(..) )
 import qualified Data.Aeson                    as Aeson
 import qualified System.Posix                  as Posix
 import           Codec.Serialise               as CBOR
-
+import           System.FSNotify
 
 newtype UnixSignal = UnixSignal Posix.Signal
                    deriving stock (Generic)
@@ -62,3 +62,5 @@ newtype UserName = UserName Text
 
 newtype ProcessId = ProcessId Posix.ProcessID
                   deriving stock (Generic, Show)
+
+type FSEvent = Event

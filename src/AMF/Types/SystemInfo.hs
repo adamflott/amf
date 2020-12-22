@@ -1,14 +1,10 @@
 module AMF.Types.SystemInfo
     ( User(..)
-
     , StatGrabInfo(..)
     , HasStatGrabInfo(..)
-
     , SystemInfo(..)
     , HasSystemInfo(..)
-
     , ResourceLimits(..)
-
     ) where
 
 -- prelude

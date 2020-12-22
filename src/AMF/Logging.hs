@@ -28,7 +28,7 @@ module AMF.Logging
     , logEvent
 
     -- * Misc.
-    , getConfig
+--    , getConfig
     , getOutputs
     , module X
     ) where

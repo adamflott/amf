@@ -15,18 +15,20 @@ import           Control.Monad.Catch            ( MonadMask )
 import           Options.Applicative
 import qualified Data.Aeson                    as Aeson
 import qualified System.Posix                  as Posix
+import qualified Data.YAML                     as YAML
+import           Path
 
 -- local
 import           AMF.API
 import           AMF.Events
 import           AMF.Executor.Daemon
-import           AMF.Types.Executor
 import           AMF.Logging.Types
-import           AMF.Logging.Outputs.Console
 import           AMF.Logging.Types.Format
 import           AMF.Logging.Types.Level
-import           AMF.Logging.Types.Console
 import           AMF.Types.Common
+import           AMF.Types.Executor
+import           AMF.Types.RunCtx
+
 
 data DaemonType
     = DaemonTypeTraditional
@@ -34,7 +36,8 @@ data DaemonType
     deriving stock (Show)
 
 data Options = Options
-    { dt :: DaemonType
+    { dt         :: DaemonType
+    , configFile :: Text
     }
     deriving stock Show
 
@@ -48,24 +51,22 @@ appOpts :: ParserInfo Options
 appOpts = info (optSpec <**> helper) (fullDesc <> progDesc "example daemon")
 
 optSpec :: Parser Options
-optSpec = Options <$> (dtTrad <|> dtK8s)
+optSpec = Options <$> (dtTrad <|> dtK8s) <*> configFileParser
   where
-    dtTrad = flag' DaemonTypeTraditional (long "traditional" <> short 't' <> help "")
-    dtK8s  = flag' DaemonTypeKubernetes (long "kubernetes" <> short 'k' <> help "")
+    dtTrad           = flag' DaemonTypeTraditional (long "traditional" <> short 't' <> help "")
+    dtK8s            = flag' DaemonTypeKubernetes (long "kubernetes" <> short 'k' <> help "")
+    configFileParser = strOption (long "config" <> short 'c' <> metavar "FILE" <> value "config.yaml" <> showDefault <> help "Config file path")
 
 
 --------------------------------------------------------------------------------
 
-sigHandler :: RunCtx EventX -> Posix.Signal -> IO ()
-sigHandler run_ctx _sig = do
-    logEvent run_ctx LogLevelTerse (EventB 1)
+sigHandler :: RunCtx EventX Config -> Posix.Signal -> IO ()
+sigHandler _run_ctx _sig = do
     pass
 
 --------------------------------------------------------------------------------
 
-data EventX
-    = EventA Text Text
-    | EventB Int
+data EventX = EventConfig Config
     deriving stock (Generic, Show)
     deriving anyclass (Serialise, Aeson.ToJSON)
 
@@ -82,8 +83,23 @@ daemonEvLineFmt :: EventX -> LByteString
 daemonEvLineFmt ev = evFmt ev <> "\n"
   where
     evFmt = \case
-        EventA t1 t2 -> "t1:" <> show t1 <+> "t2:" <> show t2
-        EventB i1    -> "i1:" <> show i1
+        EventConfig cfg -> "cfg:" <> show cfg
+
+--------------------------------------------------------------------------------
+
+data Config = Config
+    { i :: Int
+    , s :: Text
+    }
+    deriving stock (Generic, Show)
+    deriving anyclass (Serialise, Aeson.ToJSON)
+
+instance YAML.FromYAML Config where
+    parseYAML = YAML.withMap "Example Daemon Config" $ \m -> Config <$> m YAML..: "i" <*> m YAML..: "s"
+
+
+cfgParser :: ConfigParser Config
+cfgParser = yamlParser
 
 --------------------------------------------------------------------------------
 
@@ -98,36 +114,51 @@ type AppConstraints m
       , MonadUnixSignalsRaise m
       , MonadEventQueueRead m
       , MonadEventQueueListen m
+      , MonadConfigGet m
+      , MonadConfigChangeBlockingReact m
       )
 
+getAppConfigFilepath :: Executor a => a -> RunCtx ev cfg -> Text
+getAppConfigFilepath exec run_ctx = do
+    let d        = fsDirJoin (fsDirRoot exec) [fsDirMetadata exec]
+        fn       = configFilename run_ctx (run_ctx ^. runCtxAppName)
+        maybe_fp = fsFileJoin d fn
 
-myAppSetup :: (AppConstraints m, Executor e) => e -> RunCtx EventX -> Options -> m (Either ExitCode Int)
-myAppSetup exec run_ctx _opts = do
-    let log_ctx = run_ctx ^. runCtxLogger
+    maybe "?" (toText . toFilePath) maybe_fp
 
-    -- TODO eliminate Either
-    Right logger_stdout <- newConsoleOutput LogLevelAll LogFormatLine LogOutputStdOut
+myAppSetup :: (AppConstraints m, Executor e) => e -> RunCtx EventX Config -> Options -> m (Either ExitCode Options)
+myAppSetup exec run_ctx opts = do
 
-    addLogger log_ctx logger_stdout
-    logEvent run_ctx LogLevelTerse (EventB 1)
+    setConfigDefault run_ctx Nothing
+    setConfigBlockingReadAndParseFor run_ctx (configFile opts)
 
-    logAllSysInfo run_ctx exec
+    let app_cfg_fp = getAppConfigFilepath exec run_ctx
+    maybe_cfg <- getConfig run_ctx app_cfg_fp
+
+    whenJust maybe_cfg $ \cfg -> do
+        logEvent run_ctx LogLevelTerse (EventConfig cfg)
 
     addSignalHandler run_ctx [Posix.sigHUP, Posix.sigTERM, Posix.sigINT] sigHandler
     raiseSignal run_ctx Posix.sigHUP
 
-    --pure (Left (ExitFailure 10))
-    pure (Right 100)
+    pure (Right opts)
 
-heartbeat :: AppConstraints m => RunCtx EventX -> m ()
-heartbeat run_ctx = do
-  --  logEvent run_ctx LogLevelTerse (EventA "1" "2")
-    liftIO $ threadDelay 1000000
-    heartbeat run_ctx
 
-myAppMain :: (AppConstraints m) => RunCtx EventX -> v -> m ()
-myAppMain run_ctx _ = do
-    heartbeat_h <- liftIO $ async (heartbeat run_ctx)
+heartbeat :: (MonadIO m, MonadEventLogger m, MonadConfigGet m, Executor e) => e -> RunCtx EventX Config -> m ()
+heartbeat exec run_ctx = do
+    liftIO $ threadDelay (10 * 1000000)
+
+    let app_cfg_fp = getAppConfigFilepath exec run_ctx
+    maybe_cfg <- getConfig run_ctx app_cfg_fp
+
+    whenJust maybe_cfg $ \cfg -> do
+      logEvent run_ctx LogLevelTerse (EventConfig cfg)
+
+    heartbeat exec run_ctx
+
+myAppMain :: (AppConstraints m, Executor e) => e -> RunCtx EventX Config -> Options -> m ()
+myAppMain exec run_ctx _opts = do
+    heartbeat_h <- liftIO $ async (heartbeat exec run_ctx)
     ch          <- listenEventQueue run_ctx
     loop ch heartbeat_h
   where
@@ -153,19 +184,25 @@ myAppMain run_ctx _ = do
                                     pass
                                 | otherwise -> loop ch heartbeat_h
                         _ -> loop ch heartbeat_h
-                ev2 -> do
-                    print ev2
+                _ -> do
                     loop ch heartbeat_h
 
-myAppFinish :: (AppConstraints m) => RunCtx e -> v -> m ()
+myAppFinish :: (AppConstraints m) => RunCtx e c -> v -> m ()
 myAppFinish _run_ctx _ = do
     pass
 
 
 --------------------------------------------------------------------------------
 
+data AppSpec ev opt cfg = AppSpec
+    { optionParser :: Maybe (Parser opt)
+    }
+
+app :: AppSpec EventX Options Config
+app = AppSpec { optionParser = Just optSpec }
+
 main :: IO ()
 main = parseOpts >>= chooseExecutor
   where
-    chooseExecutor opts@(Options DaemonTypeTraditional) = runDaemon myAppSetup myAppMain myAppFinish opts
-    chooseExecutor (     Options DaemonTypeKubernetes ) = pass
+    chooseExecutor opts@(Options DaemonTypeTraditional _) = runDaemon "amf-daemon" cfgParser myAppSetup myAppMain myAppFinish opts
+    chooseExecutor (     Options DaemonTypeKubernetes  _) = pass

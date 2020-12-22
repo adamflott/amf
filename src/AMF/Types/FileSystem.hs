@@ -8,6 +8,7 @@ import           Relude                  hiding ( readFile
 -- base
 
 -- Hackage
+import qualified Data.ByteString.Lazy          as BSL
 import           Path
 import qualified Path.IO                       as PIO
 import qualified System.IO.Utf8                as Utf8
@@ -23,10 +24,10 @@ import qualified System.IO
 -- Read -------------------------------------------------------------------------
 
 class Monad m => MonadFileSystemRead m where
-    readFile :: Path b File -> m (Either IOException Text)
+    readFile :: Path b File -> m (Either IOException LByteString)
     listDirectory :: Path b Dir -> m (Either IOException ([Path Abs Dir], [Path Abs File]))
 
-    default readFile :: (MonadTrans t, MonadFileSystemRead m', m ~ t m') => Path b File -> m (Either IOException Text)
+    default readFile :: (MonadTrans t, MonadFileSystemRead m', m ~ t m') => Path b File -> m (Either IOException LByteString)
     readFile = lift . readFile
 
     default listDirectory :: (MonadTrans t, MonadFileSystemRead m', m ~ t m') => Path b Dir -> m (Either IOException ([Path Abs Dir], [Path Abs File]))
@@ -53,7 +54,8 @@ instance MonadFileSystemRead m => MonadFileSystemRead (ExceptT r m)
 
 
 instance MonadFileSystemRead IO where
-    readFile = tryIO . readFileText . toString . toFilePath
+    readFile fn = tryIO (BSL.readFile (toFilePath fn))
+
     listDirectory dir = do
         r <- tryIO (PIO.listDir dir)
         case r of
