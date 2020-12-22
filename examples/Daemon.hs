@@ -28,6 +28,8 @@ import           AMF.Logging.Types.Level
 import           AMF.Types.Common
 import           AMF.Types.Executor
 import           AMF.Types.RunCtx
+import           AMF.Types.AppSpec
+import           AMF.Types.Config
 
 
 data DaemonType
@@ -42,13 +44,6 @@ data Options = Options
     deriving stock Show
 
 
-
-parseOpts :: IO Options
-parseOpts = customExecParser (prefs (showHelpOnEmpty <> showHelpOnError)) appOpts
-
-
-appOpts :: ParserInfo Options
-appOpts = info (optSpec <**> helper) (fullDesc <> progDesc "example daemon")
 
 optSpec :: Parser Options
 optSpec = Options <$> (dtTrad <|> dtK8s) <*> configFileParser
@@ -152,11 +147,11 @@ heartbeat exec run_ctx = do
     maybe_cfg <- getConfig run_ctx app_cfg_fp
 
     whenJust maybe_cfg $ \cfg -> do
-      logEvent run_ctx LogLevelTerse (EventConfig cfg)
+        logEvent run_ctx LogLevelTerse (EventConfig cfg)
 
     heartbeat exec run_ctx
 
-myAppMain :: (AppConstraints m, Executor e) => e -> RunCtx EventX Config -> Options -> m ()
+myAppMain :: (AppConstraints m, Executor e) => e -> RunCtx EventX Config -> Options -> m Options
 myAppMain exec run_ctx _opts = do
     heartbeat_h <- liftIO $ async (heartbeat exec run_ctx)
     ch          <- listenEventQueue run_ctx
@@ -168,7 +163,7 @@ myAppMain exec run_ctx _opts = do
     loop ch heartbeat_h = do
         maybe_ev <- readEventQueue ch
         case maybe_ev of
-            Nothing                             -> pass
+            Nothing                             -> pure _opts
             Just (LogEventWithDetails _ _ _ ev) -> case ev of
                 LogCmdAddAMFEv ev_amf -> do
                     case ev_amf of
@@ -178,10 +173,10 @@ myAppMain exec run_ctx _opts = do
                                     loop ch heartbeat_h
                                 | sig == Posix.sigINT -> do
                                     cleanup heartbeat_h
-                                    pass
+                                    pure _opts
                                 | sig == Posix.sigTERM -> do
                                     cleanup heartbeat_h
-                                    pass
+                                    pure _opts
                                 | otherwise -> loop ch heartbeat_h
                         _ -> loop ch heartbeat_h
                 _ -> do
@@ -194,15 +189,15 @@ myAppFinish _run_ctx _ = do
 
 --------------------------------------------------------------------------------
 
-data AppSpec ev opt cfg = AppSpec
-    { optionParser :: Maybe (Parser opt)
-    }
-
-app :: AppSpec EventX Options Config
-app = AppSpec { optionParser = Just optSpec }
+app :: (AppConstraints m, Executor e) => AppSpec m e EventX Options Config Options
+app = AppSpec { appName    = "amf-daemon"
+              , optionSpec = newOptSpec "amf-daemon example" optSpec
+              , configSpec = newConfigSpec cfgParser
+              , appSetup   = myAppSetup
+              , appMain    = myAppMain
+              , appEnd     = myAppFinish
+              }
 
 main :: IO ()
-main = parseOpts >>= chooseExecutor
-  where
-    chooseExecutor opts@(Options DaemonTypeTraditional _) = runDaemon "amf-daemon" cfgParser myAppSetup myAppMain myAppFinish opts
-    chooseExecutor (     Options DaemonTypeKubernetes  _) = pass
+main = do
+    runAppSpecAsDaemon app

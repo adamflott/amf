@@ -2,31 +2,17 @@ module AMF.Types.RunCtx where
 
 import           Relude
 
+-- base
+
 -- Hackage
 import           Control.Lens
 import           Path
 import           Chronos
-import qualified Data.YAML                     as YAML
 
 -- local
 import           AMF.Logging.Types
 import           AMF.Types.SystemInfo
-
-data ConfigParseResult
-    = ConfigParseResultIO Text
-    | ConfigParseResultYAML (YAML.Pos, String)
-    deriving stock Show
-
-data ConfigParser a = ConfigParserYAML (LByteString -> Either ConfigParseResult a)
-
-yamlParser :: YAML.FromYAML a => ConfigParser a
-yamlParser =
-    (ConfigParserYAML $ \v -> do
-        let r = YAML.decode1 v
-        case r of
-            Left  err -> Left (ConfigParseResultYAML err)
-            Right v'  -> Right v'
-    )
+import           AMF.Types.Config
 
 
 data RunCtx ev cfg = RunCtx

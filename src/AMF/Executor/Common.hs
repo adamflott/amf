@@ -12,6 +12,7 @@ import           Data.Version                   ( Version )
 import           AMF.API
 import           AMF.API.SystemInfo
 import           AMF.Logging
+import           AMF.Types.Config
 import           AMF.Types.Environment
 import           AMF.Types.FileSystem
 import           AMF.Types.RunCtx

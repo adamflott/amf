@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f46b9c69bd652da63990f404a58b387ace66d5c6fe6eed9b69a67a31804b40a2
+-- hash: 828d52ec85e5715eded3bfbfbd4243b2504e190336fd35f4667a22974adc7fcb
 
 name:           amf
 version:        0.0.1
@@ -45,7 +45,9 @@ library
       AMF.Logging.Types.Level
       AMF.Logging.Types.Outputs
       AMF.Logging.Types.OutputsInterface
+      AMF.Types.AppSpec
       AMF.Types.Common
+      AMF.Types.Config
       AMF.Types.Environment
       AMF.Types.Executor
       AMF.Types.FileSystem

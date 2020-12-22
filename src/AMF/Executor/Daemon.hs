@@ -26,6 +26,8 @@ import           AMF.Types.Environment
 import           AMF.Types.Executor
 import           AMF.Types.FileSystem
 import           AMF.Types.RunCtx
+import           AMF.Types.Config
+import           AMF.Types.AppSpec
 
 
 data Traditional = Traditional
@@ -45,8 +47,6 @@ instance Executor Traditional where
     fsFileAppInfo _ = Nothing
 
     fsDirCache _ = Just [reldir|var/cache|]
-
-    getExec a = pure a
 
     initExec _run_ctx = do
         pn <- getProgName
@@ -129,17 +129,10 @@ configChangeHandler run_ctx fs_ev = do
                 storeX run_ctx (toText (toFilePath fp)) cfg
     pass
 
-{-
-runDaemon
-    :: (Show ev, Eventable ev)
-    => (Traditional -> RunCtx ev -> t1 -> IO (Either ExitCode t2))
-    -> (RunCtx ev -> t2 -> IO t3)
-    -> (RunCtx ev -> t3 -> IO ())
-    -> t1
-    -> IO ()
-    -}
-runDaemon app_name cfg_parser app_setup app_main app_finish opts = withUtf8 $ do
-    run_ctx <- Common.init app_name cfg_parser
+runAppSpecAsDaemon :: (Eventable ev, Show ev, Show c) => AppSpec IO Traditional ev a c a -> IO ()
+runAppSpecAsDaemon (AppSpec name opt_spec cfg_spec app_setup app_main app_end) = withUtf8 $ do
+    opts    <- parseOpts opt_spec
+    run_ctx <- Common.init name (_confSpecParser cfg_spec)
     let log_ctx = run_ctx ^. runCtxLogger
 
     log_h               <- startLogger log_ctx
@@ -180,7 +173,7 @@ runDaemon app_name cfg_parser app_setup app_main app_finish opts = withUtf8 $ do
                                 main_val   <- wait app_handle
 
                                 AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvPhase Finish)
-                                app_finish run_ctx main_val
+                                app_end run_ctx main_val
 
                     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvStop amfVersion uptime)
 

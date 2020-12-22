@@ -11,12 +11,12 @@ import           Path
 import qualified System.Statgrab               as SG
 
 -- local
+import           AMF.API
 import           AMF.Events
 import           AMF.Logging.Types.Level
 import           AMF.Types.Executor
-import           AMF.Types.SystemInfo
-import           AMF.API
 import           AMF.Types.RunCtx
+import           AMF.Types.SystemInfo
 
 
 logAllSysInfo :: (MonadEventLogger m, Executor x) => RunCtx e c -> x -> m ()

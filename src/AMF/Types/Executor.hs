@@ -7,10 +7,9 @@ import           Path
 
 -- local
 import           AMF.API
-import           AMF.Events
 import           AMF.Types.Environment
-import           AMF.Types.RunCtx
 import           AMF.Types.FileSystem
+import           AMF.Types.RunCtx
 
 
 class Executor a where
@@ -19,8 +18,6 @@ class Executor a where
   fsDirLogs :: a -> Maybe (Path Rel Dir)
   fsFileAppInfo :: a -> Maybe (Path Rel File)
   fsDirCache :: a -> Maybe (Path Rel Dir)
-
-  getExec :: Monad m => a -> m a
 
   initExec :: (MonadIO m, MonadEnv m) => RunCtx ev c -> m (Either Text a)
   setupExec ::  (MonadIO m, MonadEnv m, MonadEventLogger m, MonadFileSystemRead m, Show c) => RunCtx ev c -> a -> m (Either Text a)
