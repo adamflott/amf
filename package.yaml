@@ -90,6 +90,7 @@ dependencies:
 - base >= 4.14 && < 5.0
 - HsYAML
 - SHA
+- Glob
 - aeson
 - async
 - broadcast-chan
@@ -103,8 +104,6 @@ dependencies:
 - dlist
 - docker
 - dockerfile-creator
-- language-docker
-- Glob
 - exceptions
 - filepath
 - fsnotify
@@ -112,14 +111,14 @@ dependencies:
 - hostname
 - hxt
 - ip
-- lens
-- lifted-async
 - kubernetes-client
 - kubernetes-client-core
-- tls
+- language-docker
+- lens
+- lifted-async
 - megaparsec
-- mtl
 - monad-control
+- mtl
 - network
 - optparse-applicative >= 0.16.0.0
 - ordered-containers
@@ -133,14 +132,16 @@ dependencies:
 - safe-exceptions
 - serialise
 - split
-- stm
 - statgrab
+- stm
 - temporary
 - text
 - time
-- typed-process
+- tls
+- tomland
 - transformers
 - transformers-base
+- typed-process
 - unagi-chan
 - unix
 - unliftio

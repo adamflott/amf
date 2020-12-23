@@ -5,6 +5,7 @@ import           Relude
 
 -- base
 import           Data.Version                   ( Version )
+import           System.Exit                    ( ExitCode(..) )
 
 -- Hackage
 import           Chronos
@@ -76,7 +77,7 @@ runAppSpec (AppSpec name opt_spec cfg_spec app_setup app_main app_end) = withUtf
                 Left err -> do
                     print err
                     _ <- finishExec run_ctx t
-                    pass
+                    exitWith (ExitFailure 1)
                 Right t' -> do
                     (uptime, result) <- stopwatch $ do
 

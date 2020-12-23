@@ -60,9 +60,9 @@ instance Executor Traditional where
 
         pure (Right ctx)
 
-configFilename :: (ToString a, Semigroup a, IsString a) => RunCtx ev opts cfg -> a -> Path Rel File
+configFilename :: ToString a => RunCtx ev opts cfg -> a -> Path Rel File
 configFilename run_ctx pn = case (run_ctx ^. runCtxConfigParser) of
-    ConfigParserYAML _ -> case parseRelFile (toString (pn <> ".yaml")) of
+    ConfigParser ext _ -> case parseRelFile (toString (toString pn <> "." <> toString ext)) of
         Nothing -> [relfile|daemon.yaml|]
         Just v  -> v
 
@@ -80,7 +80,7 @@ setup run_ctx ctx@(Traditional pn m _) = do
     parse Nothing _ = do
         pure (Right (Traditional pn m Nothing))
 
-    store _ _  (Left  err) = pure (Left (show err))
+    store _ _  (Left  err) = pure (Left ((show err)))
     store d fn (Right cfg) = do
         storeX run_ctx fn cfg
         l <- liftIO (watchDir m (toFilePath d) (const True) (configChangeHandler run_ctx))
@@ -97,16 +97,16 @@ storeX run_ctx fn cfg = do
             Just _  -> Map.adjust (\_ -> cfg) (fn) cfg_map
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigStore)
 
-readAndParse :: (Monad m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev opts cfg -> Path b1 File -> m (Either ConfigParseResult cfg)
+readAndParse :: (Monad m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev opts cfg -> Path b1 File -> m (Either (ConfigParseErr) cfg)
 readAndParse run_ctx fp = do
     maybe_read <- AMF.Types.FileSystem.readFile fp
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigRead)
     case maybe_read of
-        Left  err      -> pure (Left (ConfigParseResultIO (show err)))
+        Left  err      -> pure (Left (ConfigParseErrIO (show err)))
         Right contents -> do
             AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigParse)
             case (run_ctx ^. runCtxConfigParser) of
-                ConfigParserYAML parser -> pure (parser contents)
+                ConfigParser _ parser -> pure (parser contents)
 
 
 configChangeHandler :: (MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev opts cfg -> Event -> m ()

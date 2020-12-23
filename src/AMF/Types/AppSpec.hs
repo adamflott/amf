@@ -8,6 +8,7 @@ import           System.Exit                    ( ExitCode )
 -- Hackage
 import           Options.Applicative
 import qualified Data.YAML                     as YAML
+import qualified Toml                          as TOML
 
 -- local
 import           AMF.Types.Config
@@ -46,13 +47,21 @@ appOpts optSpec desc = info (optSpec <**> helper) (fullDesc <> progDesc (toStrin
 
 yamlParser :: YAML.FromYAML a => ConfigParser a
 yamlParser =
-    (ConfigParserYAML $ \v -> do
+    (ConfigParser "yaml" $ \v -> do
         let r = YAML.decode1 v
         case r of
-            Left  err -> Left (ConfigParseResultYAML err)
+            Left  err -> Left (ConfigParserErr err)
             Right v'  -> Right v'
     )
 
+tomlParser :: TOML.TomlCodec a -> ConfigParser a
+tomlParser p =
+    (ConfigParser "toml" $ \v -> do
+        let r = TOML.decode p (decodeUtf8 v)
+        case r of
+            Left  err -> Left (ConfigParserErr err)
+            Right v'  -> Right v'
+    )
 
-newConfigSpec :: ConfigParser a -> ConfigSpec a
+newConfigSpec :: ConfigParser b -> ConfigSpec b
 newConfigSpec = ConfigSpec

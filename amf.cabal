@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 828d52ec85e5715eded3bfbfbd4243b2504e190336fd35f4667a22974adc7fcb
+-- hash: a14a0c7cc90aafc155e2ff58a7a73483c2992a6c9e817f54f76a8dcb1b653aab
 
 name:           amf
 version:        0.0.1
@@ -111,6 +111,7 @@ library
     , text
     , time
     , tls
+    , tomland
     , transformers
     , transformers-base
     , typed-process
@@ -183,6 +184,7 @@ executable amf-daemon
     , text
     , time
     , tls
+    , tomland
     , transformers
     , transformers-base
     , typed-process
@@ -256,6 +258,7 @@ test-suite amf-test
     , text
     , time
     , tls
+    , tomland
     , transformers
     , transformers-base
     , typed-process

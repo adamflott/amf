@@ -2,17 +2,23 @@ module AMF.Types.Config where
 
 import           Relude
 
-import qualified Data.YAML                     as YAML
+-- base
+import           Text.Show
+
+-- Hackage
 
 
-data ConfigParseResult
-    = ConfigParseResultIO Text
-    | ConfigParseResultYAML (YAML.Pos, String)
-    deriving stock Show
+data ConfigParseErr
+    = ConfigParseErrIO Text
+    | forall a. Show a => ConfigParserErr a
 
+instance Show ConfigParseErr where
+    show = \case
+        ConfigParseErrIO e -> Relude.show e
+        ConfigParserErr  e -> Relude.show e
 
-newtype ConfigParser a = ConfigParserYAML (LByteString -> Either ConfigParseResult a)
+data ConfigParser b = ConfigParser Text (LByteString -> Either ConfigParseErr b)
 
-data ConfigSpec a = ConfigSpec
-    { _confSpecParser :: ConfigParser a
+data ConfigSpec b = ConfigSpec
+    { _confSpecParser :: ConfigParser b
     }

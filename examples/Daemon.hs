@@ -10,13 +10,14 @@ import           System.Exit
 -- Hackage
 import           Codec.Serialise               as CBOR
 import           Control.Concurrent.Async
-import           Control.Lens
+import           Control.Lens            hiding ( (.=) )
 import           Control.Monad.Catch            ( MonadMask )
 import           Options.Applicative
 import qualified Data.Aeson                    as Aeson
 import qualified System.Posix                  as Posix
 import qualified Data.YAML                     as YAML
 import           Path
+import           Toml
 
 -- local
 import           AMF.API
@@ -113,8 +114,16 @@ instance YAML.FromYAML Config where
     parseYAML = YAML.withMap "Example Daemon Config" $ \m -> Config <$> m YAML..: "i" <*> m YAML..: "s"
 
 
+
+
 cfgParser :: ConfigParser Config
-cfgParser = yamlParser
+cfgParser = parser
+  where
+    parser = tomlParser cfgTOMLCodec
+    cfgTOMLCodec :: TomlCodec Config
+    cfgTOMLCodec = Config <$> Toml.int "i" .= i <*> Toml.text "s" .= s
+    -- or use YAML
+    -- parser = yamlParser
 
 --------------------------------------------------------------------------------
 
