@@ -104,6 +104,7 @@ dependencies:
 - dlist
 - docker
 - dockerfile-creator
+- envy
 - exceptions
 - filepath
 - fsnotify

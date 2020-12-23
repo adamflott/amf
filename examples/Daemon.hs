@@ -17,7 +17,8 @@ import qualified Data.Aeson                    as Aeson
 import qualified System.Posix                  as Posix
 import qualified Data.YAML                     as YAML
 import           Path
-import           Toml
+import qualified Toml                          as TOML
+import           System.Envy
 
 -- local
 import           AMF.API
@@ -49,29 +50,29 @@ type AppConstraints m
       , MonadConfigChangeBlockingReact m
       )
 
-type Ctx = RunCtx EventX Options Config
+type Ctx = RunCtx EventX Config Config Config
+
+data Config = Config
+    { i :: Int
+    , s :: Text
+    }
+    deriving stock (Generic, Show)
+    deriving anyclass (Serialise, Aeson.ToJSON)
+
 
 --------------------------------------------------------------------------------
 
-data DaemonType
-    = DaemonTypeTraditional
-    | DaemonTypeKubernetes
-    deriving stock (Show)
-
-data Options = Options
-    { dt         :: DaemonType
-    , configFile :: Text
-    }
-    deriving stock Show
+instance FromEnv Config where
+    fromEnv _ = Config <$> envMaybe "AMF_I" .!= 1 <*> envMaybe "AMF_S" .!= "str"
 
 
+--------------------------------------------------------------------------------
 
-optSpec :: Parser Options
-optSpec = Options <$> (dtTrad <|> dtK8s) <*> configFileParser
+optSpec :: OptionParser Config
+optSpec = Config <$> optI <*> optS
   where
-    dtTrad           = flag' DaemonTypeTraditional (long "traditional" <> short 't' <> help "")
-    dtK8s            = flag' DaemonTypeKubernetes (long "kubernetes" <> short 'k' <> help "")
-    configFileParser = strOption (long "config" <> short 'c' <> metavar "FILE" <> value "config.yaml" <> showDefault <> help "Config file path")
+    optI = option auto (long "int" <> short 'i' <> help "Int")
+    optS = strOption (long "str" <> short 's' <> metavar "STR" <> value "" <> showDefault <> help "")
 
 
 --------------------------------------------------------------------------------
@@ -103,12 +104,6 @@ daemonEvLineFmt ev = evFmt ev <> "\n"
 
 --------------------------------------------------------------------------------
 
-data Config = Config
-    { i :: Int
-    , s :: Text
-    }
-    deriving stock (Generic, Show)
-    deriving anyclass (Serialise, Aeson.ToJSON)
 
 instance YAML.FromYAML Config where
     parseYAML = YAML.withMap "Example Daemon Config" $ \m -> Config <$> m YAML..: "i" <*> m YAML..: "s"
@@ -120,8 +115,8 @@ cfgParser :: ConfigParser Config
 cfgParser = parser
   where
     parser = tomlParser cfgTOMLCodec
-    cfgTOMLCodec :: TomlCodec Config
-    cfgTOMLCodec = Config <$> Toml.int "i" .= i <*> Toml.text "s" .= s
+    cfgTOMLCodec :: TOML.TomlCodec Config
+    cfgTOMLCodec = Config <$> TOML.int "i" TOML..= i <*> TOML.text "s" TOML..= s
     -- or use YAML
     -- parser = yamlParser
 
@@ -131,7 +126,7 @@ data MyState = MyState Int
 
 --------------------------------------------------------------------------------
 
-getAppConfigFilepath :: Executor a => a -> RunCtx ev opts cfg -> Text
+getAppConfigFilepath :: Executor a => a -> RunCtx ev env opts cfg -> Text
 getAppConfigFilepath exec run_ctx = do
     let d        = fsDirJoin (fsDirRoot exec) [fsDirMetadata exec]
         fn       = configFilename run_ctx (run_ctx ^. runCtxAppName)
@@ -139,10 +134,10 @@ getAppConfigFilepath exec run_ctx = do
 
     maybe "?" (toText . toFilePath) maybe_fp
 
-myAppSetup :: (AppConstraints m, Executor e) => e -> Ctx -> Options -> m (Either ExitCode MyState)
+myAppSetup :: (AppConstraints m, Executor e) => e -> Ctx -> Config -> m (Either ExitCode MyState)
 myAppSetup exec run_ctx opts = do
 
-    setConfigBlockingReadAndParseFor run_ctx (configFile opts)
+    -- setConfigBlockingReadAndParseFor run_ctx (configFile opts)
 
     let app_cfg_fp = getAppConfigFilepath exec run_ctx
     maybe_cfg <- getConfig run_ctx app_cfg_fp
@@ -168,7 +163,7 @@ heartbeat exec run_ctx = do
 
     heartbeat exec run_ctx
 
-myAppMain :: (AppConstraints m, Executor e) => e -> Ctx -> Options -> MyState -> m MyState
+myAppMain :: (AppConstraints m, Executor e) => e -> Ctx -> Config -> MyState -> m MyState
 myAppMain exec run_ctx _opts st = do
     heartbeat_h <- liftIO $ async (heartbeat exec run_ctx)
     ch          <- listenEventQueue run_ctx
@@ -206,8 +201,9 @@ myAppFinish _run_ctx _ = do
 
 --------------------------------------------------------------------------------
 
-app :: (AppConstraints m, Executor e) => AppSpec m e EventX Options Config MyState
+app :: (AppConstraints m, Executor e) => AppSpec m e EventX Config Config Config MyState
 app = AppSpec { appName    = "amf-daemon"
+              , envSpec    = newEnvSpec
               , optionSpec = newOptSpec "amf-daemon example" optSpec
               , configSpec = newConfigSpec cfgParser
               , appSetup   = myAppSetup

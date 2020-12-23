@@ -13,6 +13,7 @@ import           Kubernetes.Client              ( KubeConfigSource(..)
 --import Kubernetes.OpenAPI     (Accept (..), MimeJSON (..), dispatchMime)
 --import Network.TLS            (credentialLoadX509)
 import qualified Data.Map.Strict               as Map
+import qualified System.Envy                   as Envy
 
 -- local
 import           AMF.Events
@@ -45,7 +46,7 @@ instance Executor K8s where
 
     finishExec _ _ = pure (Left "TODO")
 
-runAppSpecAsK8s :: (Eventable ev, Show ev, Show cfg) => AppSpec IO K8s ev opts cfg a -> IO ()
+runAppSpecAsK8s :: (Eventable ev, Envy.FromEnv env, Show ev, Show cfg) => AppSpec IO K8s ev env opts cfg a -> IO ()
 runAppSpecAsK8s = runAppSpec
 
 

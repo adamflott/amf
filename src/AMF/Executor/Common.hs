@@ -12,6 +12,7 @@ import           Chronos
 import           Control.Concurrent.Async
 import           Control.Lens
 import           Main.Utf8
+import qualified System.Envy                   as Envy
 
 -- local
 import           AMF.API
@@ -36,28 +37,40 @@ import           Paths_amf
 amfVersion :: Version
 amfVersion = Paths_amf.version
 
-init :: (MonadIO m, MonadEnv m, MonadArguments m, MonadFileSystemRead m, MonadTime m) => Text -> ConfigParser cfg -> opts -> m (RunCtx ev opts cfg)
-init app_name cfg_parser opts = do
+init
+    :: (MonadIO m, MonadFail m, MonadEnv m, MonadArguments m, MonadFileSystemRead m, MonadTime m, Envy.FromEnv env)
+    => Text
+    -> ConfigParser cfg
+    -> opts
+    -> EnvSpec env
+    -> m (RunCtx ev env opts cfg)
+init app_name cfg_parser opts _ = do
     log_cfg <- newConfig newEmptyOutputs
     logger  <- newLoggingCtx log_cfg
 
-    RunCtx
-        <$> pure app_name
-        <*> newSystemInfo
-        <*> getEnvironment
-        <*> getArgs
-        <*> getCurrentDirectory
-        <*> getNow
-        <*> pure logger
-        <*> pure opts
-        <*> pure cfg_parser
-        <*> pure Nothing
-        <*> newTVarIO mempty
+    x       <- liftIO $ Envy.decodeEnv
+    case x of
+        Left err -> do
+            fail err
+        Right ee -> do
+            RunCtx
+                <$> pure app_name
+                <*> newSystemInfo
+                <*> getEnvironment
+                <*> getArgs
+                <*> getCurrentDirectory
+                <*> getNow
+                <*> pure logger
+                <*> pure ee
+                <*> pure opts
+                <*> pure cfg_parser
+                <*> pure Nothing
+                <*> newTVarIO mempty
 
-runAppSpec :: (Eventable ev, Show ev, Show cfg, Executor ex) => AppSpec IO ex ev opts cfg a -> IO ()
-runAppSpec (AppSpec name opt_spec cfg_spec app_setup app_main app_end) = withUtf8 $ do
+runAppSpec :: (Eventable ev, Show ev, Envy.FromEnv env, Show cfg, Executor ex) => AppSpec IO ex ev env opts cfg a -> IO ()
+runAppSpec (AppSpec name env_spec opt_spec cfg_spec app_setup app_main app_end) = withUtf8 $ do
     opts    <- parseOpts opt_spec
-    run_ctx <- AMF.Executor.Common.init name (_confSpecParser cfg_spec) opts
+    run_ctx <- AMF.Executor.Common.init name (_confSpecParser cfg_spec) opts env_spec
     let log_ctx = run_ctx ^. runCtxLogger
 
     log_h               <- startLogger log_ctx

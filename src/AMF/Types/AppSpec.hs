@@ -9,10 +9,16 @@ import           System.Exit                    ( ExitCode )
 import           Options.Applicative
 import qualified Data.YAML                     as YAML
 import qualified Toml                          as TOML
+import qualified System.Envy                   as Envy
 
 -- local
 import           AMF.Types.Config
 import           AMF.Types.RunCtx
+
+
+type EnvParser a = (Either String a)
+
+type EnvSpec a = a
 
 
 type OptionParser = Parser
@@ -23,16 +29,22 @@ data OptionSpec a = OptionSpec
     }
 
 
-data AppSpec m e ev opts cfg a = AppSpec
+data AppSpec m e ev env opts cfg a = AppSpec
     { appName    :: Text
+    , envSpec    :: EnvSpec env
     , optionSpec :: OptionSpec opts
     , configSpec :: ConfigSpec cfg
-    , appSetup   :: e -> RunCtx ev opts cfg -> opts -> m (Either ExitCode a)
-    , appMain    :: e -> RunCtx ev opts cfg -> opts -> a -> m a
-    , appEnd     :: RunCtx ev opts cfg -> a -> m ()
+    , appSetup   :: e -> RunCtx ev env opts cfg -> opts -> m (Either ExitCode a)
+    , appMain    :: e -> RunCtx ev env opts cfg -> opts -> a -> m a
+    , appEnd     :: RunCtx ev env opts cfg -> a -> m ()
     }
 
+--------------------------------------------------------------------------------
 
+newEnvSpec :: EnvSpec a
+newEnvSpec = undefined
+
+--------------------------------------------------------------------------------
 
 newOptSpec :: Text -> OptionParser a -> OptionSpec a
 newOptSpec = OptionSpec

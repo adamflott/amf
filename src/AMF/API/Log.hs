@@ -19,14 +19,14 @@ import           AMF.Types.RunCtx
 import           AMF.Types.SystemInfo
 
 
-logAllSysInfo :: (MonadEventLogger m, Executor x) => RunCtx ev opts cfg -> x -> m ()
+logAllSysInfo :: (MonadEventLogger m, Executor x) => RunCtx ev env opts cfg -> x -> m ()
 logAllSysInfo run_ctx e = do
     logSysInfo run_ctx e
     logSysLimitInfo run_ctx e
     logSysCompilerInfo run_ctx e
     logExecutorFsEntries run_ctx e
 
-logSysInfo :: MonadEventLogger m => RunCtx ev opts cfg -> p -> m ()
+logSysInfo :: MonadEventLogger m => RunCtx ev env opts cfg -> p -> m ()
 logSysInfo run_ctx _ = do
     let si        = run_ctx ^. runCtxSystemInfo
         sg        = si ^. systemInfoStats
@@ -46,18 +46,18 @@ logSysInfo run_ctx _ = do
 
     AMF.API.logAMFEvent run_ctx LogLevelVerbose (AMFEvSysInfo ncpu (mem_used, mem_total) bw bo os_name os_rel os_vers plat)
 
-logSysLimitInfo :: MonadEventLogger m => RunCtx ev opts cfg -> p -> m ()
+logSysLimitInfo :: MonadEventLogger m => RunCtx ev env opts cfg -> p -> m ()
 logSysLimitInfo run_ctx _ = do
     let rls = run_ctx ^. runCtxSystemInfo . systemInfoResourceLimits
     AMF.API.logAMFEvent run_ctx LogLevelVerbose (AMFEvSysLimitInfo rls)
 
-logSysCompilerInfo :: MonadEventLogger m => RunCtx ev opts cfg -> p -> m ()
+logSysCompilerInfo :: MonadEventLogger m => RunCtx ev env opts cfg -> p -> m ()
 logSysCompilerInfo run_ctx _ = do
     let name = toText (run_ctx ^. runCtxSystemInfo . systemInfoCompilerName)
         vers = run_ctx ^. runCtxSystemInfo . systemInfoCompilerVersion
     AMF.API.logAMFEvent run_ctx LogLevelVerbose (AMFEvSysCompilerInfo name vers)
 
-logExecutorFsEntries :: (MonadEventLogger m, Executor a) => RunCtx ev opts cfg -> a -> m ()
+logExecutorFsEntries :: (MonadEventLogger m, Executor a) => RunCtx ev env opts cfg -> a -> m ()
 logExecutorFsEntries run_ctx e = do
     AMF.API.logAMFEvent run_ctx LogLevelVerbose (AMFEvFSEntry "root" (f (fsDirRoot e)))
     AMF.API.logAMFEvent run_ctx LogLevelVerbose (AMFEvFSEntry "metadata" (f (fsDirMetadata e)))

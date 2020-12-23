@@ -9,6 +9,7 @@ import           Control.Lens
 import           Path
 import           System.FSNotify
 import qualified Data.Map.Strict               as Map
+import qualified System.Envy                   as Envy
 
 -- local
 import           AMF.API
@@ -60,13 +61,13 @@ instance Executor Traditional where
 
         pure (Right ctx)
 
-configFilename :: ToString a => RunCtx ev opts cfg -> a -> Path Rel File
+configFilename :: ToString a => RunCtx ev env opts cfg -> a -> Path Rel File
 configFilename run_ctx pn = case (run_ctx ^. runCtxConfigParser) of
     ConfigParser ext _ -> case parseRelFile (toString (toString pn <> "." <> toString ext)) of
         Nothing -> [relfile|daemon.yaml|]
         Just v  -> v
 
-setup :: (IsString a, MonadIO m, MonadEventLogger m, MonadFileSystemRead m) => RunCtx ev opts cfg -> Traditional -> m (Either a Traditional)
+setup :: (IsString a, MonadIO m, MonadEventLogger m, MonadFileSystemRead m) => RunCtx ev env opts cfg -> Traditional -> m (Either a Traditional)
 setup run_ctx ctx@(Traditional pn m _) = do
     let maybe_dir = fsDirJoin (fsDirRoot ctx) [fsDirMetadata ctx]
     let fn        = configFilename run_ctx pn
@@ -89,7 +90,7 @@ setup run_ctx ctx@(Traditional pn m _) = do
         pure (Right (Traditional pn m (Just l)))
 
 
-storeX :: (MonadIO m, MonadEventLogger m) => RunCtx ev opts cfg -> Text -> cfg -> m ()
+storeX :: (MonadIO m, MonadEventLogger m) => RunCtx ev env opts cfg -> Text -> cfg -> m ()
 storeX run_ctx fn cfg = do
     liftIO $ atomically $ modifyTVar' (run_ctx ^. runCtxConfig) $ \cfg_map -> do
         case Map.lookup fn cfg_map of
@@ -97,7 +98,7 @@ storeX run_ctx fn cfg = do
             Just _  -> Map.adjust (\_ -> cfg) (fn) cfg_map
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigStore)
 
-readAndParse :: (Monad m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev opts cfg -> Path b1 File -> m (Either (ConfigParseErr) cfg)
+readAndParse :: (Monad m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev env opts cfg -> Path b1 File -> m (Either (ConfigParseErr) cfg)
 readAndParse run_ctx fp = do
     maybe_read <- AMF.Types.FileSystem.readFile fp
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigRead)
@@ -109,7 +110,7 @@ readAndParse run_ctx fp = do
                 ConfigParser _ parser -> pure (parser contents)
 
 
-configChangeHandler :: (MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev opts cfg -> Event -> m ()
+configChangeHandler :: (MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev env opts cfg -> Event -> m ()
 configChangeHandler run_ctx fs_ev = do
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigFSEvent fs_ev)
     whenJust (parseAbsFile (eventPath fs_ev)) $ \fp -> do
@@ -123,5 +124,5 @@ configChangeHandler run_ctx fs_ev = do
     pass
 
 
-runAppSpecAsDaemon :: (Eventable ev, Show ev, Show cfg) => AppSpec IO Traditional ev opts cfg a -> IO ()
+runAppSpecAsDaemon :: (Eventable ev, Envy.FromEnv env, Show ev, Show cfg) => AppSpec IO Traditional ev env opts cfg a -> IO ()
 runAppSpecAsDaemon = runAppSpec
