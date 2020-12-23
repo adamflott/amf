@@ -130,6 +130,13 @@ packages:
       sha256: e3a49f9197debff57c034a60f9efd28b2de4ce6a060426e5718fb61c7921c458
   original:
     hackage: kubernetes-client-0.3.2.0@sha256:bc94e50f06a0525917a44c07177207a3c7cdc4df91e15f68d2e7aae53a216601,4818
+- completed:
+    hackage: turtle-1.5.21@sha256:e274dbe513a7d8e7a9477d3f69d57d67a8426ccc3a389e13ebb42845907bd313,4894
+    pantry-tree:
+      size: 1114
+      sha256: b0fd9a2cc8d051d9966c859ab03b5dd6e040cd53e68ee6562888c18f276f7446
+  original:
+    hackage: turtle-1.5.21
 snapshots:
 - completed:
     size: 558061

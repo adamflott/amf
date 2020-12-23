@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8c1c81c544d4e425250607955b2c96f4c921e318868a53850ce90842f82f0cd4
+-- hash: cf0b3b516f521421ca2d49de571feeeccd462d1d6afd707ad84870af5c2d36d8
 
 name:           amf
 version:        0.0.1
@@ -35,6 +35,7 @@ library
       AMF.Executor.Common
       AMF.Executor.Daemon
       AMF.Executor.Kubernetes
+      AMF.Executor.Script
       AMF.Logging
       AMF.Logging.Outputs.Console
       AMF.Logging.Outputs.File
@@ -45,6 +46,7 @@ library
       AMF.Logging.Types.Level
       AMF.Logging.Types.Outputs
       AMF.Logging.Types.OutputsInterface
+      AMF.Prelude.Script
       AMF.Types.AppSpec
       AMF.Types.Common
       AMF.Types.Config
@@ -115,6 +117,7 @@ library
     , tomland
     , transformers
     , transformers-base
+    , turtle >=1.5.21 && <=1.6.0
     , typed-process
     , unagi-chan
     , unix
@@ -125,11 +128,11 @@ library
   default-language: Haskell2010
 
 executable amf-daemon
-  main-is: Daemon.hs
+  main-is: Main.hs
   other-modules:
       Paths_amf
   hs-source-dirs:
-      examples
+      examples/daemon
   default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns UndecidableInstances
   ghc-options: -Wall -O -fwarn-unused-imports -fhide-source-paths -Widentities -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Wpartial-fields -fwrite-ide-info -hiedir=.hie -Wmissing-deriving-strategies -threaded -rtsopts -with-rtsopts=-N
   build-depends:
@@ -189,6 +192,82 @@ executable amf-daemon
     , tomland
     , transformers
     , transformers-base
+    , turtle >=1.5.21 && <=1.6.0
+    , typed-process
+    , unagi-chan
+    , unix
+    , unliftio
+    , unordered-containers
+    , vty
+    , with-utf8
+  default-language: Haskell2010
+
+executable amf-script
+  main-is: Main.hs
+  other-modules:
+      Paths_amf
+  hs-source-dirs:
+      examples/script
+  default-extensions: BangPatterns BinaryLiterals BlockArguments ConstraintKinds DataKinds DefaultSignatures DeriveAnyClass DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable DerivingStrategies DerivingVia EmptyCase EmptyDataDecls FlexibleContexts FlexibleInstances FunctionalDependencies GADTSyntax GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses MultiWayIf NoMonomorphismRestriction NoImplicitPrelude NumDecimals NumericUnderscores OverloadedStrings ParallelListComp PatternGuards PatternSynonyms QuasiQuotes RankNTypes RecordWildCards RecursiveDo ScopedTypeVariables StandaloneDeriving StaticPointers TemplateHaskell TypeApplications TypeFamilies TypeFamilyDependencies TypeInType TypeOperators TypeSynonymInstances UnicodeSyntax ViewPatterns UndecidableInstances
+  ghc-options: -Wall -O -fwarn-unused-imports -fhide-source-paths -Widentities -Wincomplete-uni-patterns -Wincomplete-record-updates -Wredundant-constraints -Wpartial-fields -fwrite-ide-info -hiedir=.hie -Wmissing-deriving-strategies -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      Glob
+    , HsYAML
+    , SHA
+    , aeson
+    , amf
+    , async
+    , base >=4.14 && <5.0
+    , broadcast-chan
+    , bytestring
+    , cassava
+    , chronos
+    , clock
+    , containers
+    , data-has
+    , directory
+    , dlist
+    , docker
+    , dockerfile-creator
+    , envy
+    , exceptions
+    , filepath
+    , fsnotify
+    , hedgehog
+    , hostname
+    , hxt
+    , ip
+    , kubernetes-client
+    , kubernetes-client-core
+    , language-docker
+    , lens
+    , lifted-async
+    , megaparsec
+    , monad-control
+    , mtl
+    , network
+    , optparse-applicative >=0.16.0.0
+    , ordered-containers
+    , path >=0.8.0
+    , path-io
+    , pretty-simple
+    , prettyprinter
+    , relude >=0.7.0.0
+    , resourcet
+    , retry
+    , safe-exceptions
+    , serialise
+    , split
+    , statgrab
+    , stm
+    , temporary
+    , text
+    , time
+    , tls
+    , tomland
+    , transformers
+    , transformers-base
+    , turtle >=1.5.21 && <=1.6.0
     , typed-process
     , unagi-chan
     , unix
@@ -264,6 +343,7 @@ test-suite amf-test
     , tomland
     , transformers
     , transformers-base
+    , turtle >=1.5.21 && <=1.6.0
     , typed-process
     , unagi-chan
     , unix

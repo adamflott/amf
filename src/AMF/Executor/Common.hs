@@ -45,14 +45,14 @@ init
     -> EnvSpec env
     -> m (RunCtx ev env opts cfg)
 init app_name cfg_parser opts _ = do
-    log_cfg <- newConfig newEmptyOutputs
-    logger  <- newLoggingCtx log_cfg
+    log_cfg        <- newConfig newEmptyOutputs
+    logger         <- newLoggingCtx log_cfg
 
-    x       <- liftIO $ Envy.decodeEnv
-    case x of
+    maybe_env_vars <- liftIO Envy.decodeEnv
+    case maybe_env_vars of
         Left err -> do
             fail err
-        Right ee -> do
+        Right env_vars -> do
             RunCtx
                 <$> pure app_name
                 <*> newSystemInfo
@@ -61,7 +61,7 @@ init app_name cfg_parser opts _ = do
                 <*> getCurrentDirectory
                 <*> getNow
                 <*> pure logger
-                <*> pure ee
+                <*> pure env_vars
                 <*> pure opts
                 <*> pure cfg_parser
                 <*> pure Nothing

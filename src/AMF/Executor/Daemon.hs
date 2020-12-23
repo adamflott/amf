@@ -24,7 +24,7 @@ import           AMF.Types.FileSystem
 import           AMF.Types.RunCtx
 
 
-data Traditional = Traditional
+data Daemon = Daemon
     { _appName         :: Text
     , _fsNotifyManager :: WatchManager
     , _fsNotifyListner :: Maybe StopListening
@@ -32,10 +32,10 @@ data Traditional = Traditional
     deriving stock Generic
 
 
-instance Executor Traditional where
+instance Executor Daemon where
     fsDirRoot _ = Just [absdir|/tmp|]
 
-    fsDirMetadata (Traditional app_name _ _) = (parseRelDir (toString ("etc/" <> app_name)))
+    fsDirMetadata (Daemon app_name _ _) = (parseRelDir (toString ("etc/" <> app_name)))
     fsDirLogs _ = Just [reldir|var/logs|]
 
     fsFileAppInfo _ = Nothing
@@ -47,11 +47,11 @@ instance Executor Traditional where
 
         m  <- liftIO startManager
 
-        pure (Right (Traditional pn m Nothing))
+        pure (Right (Daemon pn m Nothing))
 
     setupExec = setup
 
-    finishExec run_ctx ctx@(Traditional _ m _) = do
+    finishExec run_ctx ctx@(Daemon _ m _) = do
         liftIO (stopManager m)
 
         case fsDirJoin (fsDirRoot ctx) [fsDirMetadata ctx] of
@@ -64,11 +64,11 @@ instance Executor Traditional where
 configFilename :: ToString a => RunCtx ev env opts cfg -> a -> Path Rel File
 configFilename run_ctx pn = case (run_ctx ^. runCtxConfigParser) of
     ConfigParser ext _ -> case parseRelFile (toString (toString pn <> "." <> toString ext)) of
-        Nothing -> [relfile|daemon.yaml|]
+        Nothing -> [relfile|daemon.yaml|] -- TODO
         Just v  -> v
 
-setup :: (IsString a, MonadIO m, MonadEventLogger m, MonadFileSystemRead m) => RunCtx ev env opts cfg -> Traditional -> m (Either a Traditional)
-setup run_ctx ctx@(Traditional pn m _) = do
+setup :: (IsString a, MonadIO m, MonadEventLogger m, MonadFileSystemRead m) => RunCtx ev env opts cfg -> Daemon -> m (Either a Daemon)
+setup run_ctx ctx@(Daemon pn m _) = do
     let maybe_dir = fsDirJoin (fsDirRoot ctx) [fsDirMetadata ctx]
     let fn        = configFilename run_ctx pn
     let f         = fsFileJoin maybe_dir fn
@@ -79,7 +79,7 @@ setup run_ctx ctx@(Traditional pn m _) = do
         r <- readAndParse run_ctx fn
         store d (toText (toFilePath fn)) r
     parse Nothing _ = do
-        pure (Right (Traditional pn m Nothing))
+        pure (Right (Daemon pn m Nothing))
 
     store _ _  (Left  err) = pure (Left ((show err)))
     store d fn (Right cfg) = do
@@ -87,7 +87,7 @@ setup run_ctx ctx@(Traditional pn m _) = do
         l <- liftIO (watchDir m (toFilePath d) (const True) (configChangeHandler run_ctx))
         AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvFSNotifyWatch (toText (toFilePath d)))
 
-        pure (Right (Traditional pn m (Just l)))
+        pure (Right (Daemon pn m (Just l)))
 
 
 storeX :: (MonadIO m, MonadEventLogger m) => RunCtx ev env opts cfg -> Text -> cfg -> m ()
@@ -124,5 +124,5 @@ configChangeHandler run_ctx fs_ev = do
     pass
 
 
-runAppSpecAsDaemon :: (Eventable ev, Envy.FromEnv env, Show ev, Show cfg) => AppSpec IO Traditional ev env opts cfg a -> IO ()
+runAppSpecAsDaemon :: (Eventable ev, Envy.FromEnv env, Show ev, Show cfg) => AppSpec IO Daemon ev env opts cfg a -> IO ()
 runAppSpecAsDaemon = runAppSpec

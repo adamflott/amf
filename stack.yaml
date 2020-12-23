@@ -61,7 +61,7 @@ extra-deps:
 - kubernetes-client-core-0.3.1.0@sha256:52e8be31115c8d080fabdbed80db15e2fe002d6fee475aae382bd685444cd872,6014
 - oidc-client-0.6.0.0@sha256:2079dc5c9dfb5b3e2fa93098254ca16787c01a0cd3634b1d84afe84c9a6c4825,3368
 - kubernetes-client-0.3.2.0@sha256:bc94e50f06a0525917a44c07177207a3c7cdc4df91e15f68d2e7aae53a216601,4818
-
+- turtle-1.5.21
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

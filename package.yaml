@@ -142,6 +142,7 @@ dependencies:
 - tomland
 - transformers
 - transformers-base
+- turtle >= 1.5.21 && <= 1.6.0
 - typed-process
 - unagi-chan
 - unix
@@ -155,8 +156,18 @@ library:
 
 executables:
   amf-daemon:
-    main:                Daemon.hs
-    source-dirs:         examples
+    main:                Main.hs
+    source-dirs:         examples/daemon
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - amf
+
+  amf-script:
+    main:                Main.hs
+    source-dirs:         examples/script
     ghc-options:
     - -threaded
     - -rtsopts
