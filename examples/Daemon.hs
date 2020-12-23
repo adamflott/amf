@@ -32,6 +32,26 @@ import           AMF.Types.AppSpec
 import           AMF.Types.Config
 
 
+
+type AppConstraints m
+    = ( MonadIO m
+      , MonadMask m
+      , MonadFail m
+      , MonadTime m
+      , MonadEventLogger m
+      , MonadLoggerConsoleAdd m
+      , MonadUnixSignals m
+      , MonadUnixSignalsRaise m
+      , MonadEventQueueRead m
+      , MonadEventQueueListen m
+      , MonadConfigGet m
+      , MonadConfigChangeBlockingReact m
+      )
+
+type Ctx = RunCtx EventX Options Config
+
+--------------------------------------------------------------------------------
+
 data DaemonType
     = DaemonTypeTraditional
     | DaemonTypeKubernetes
@@ -55,7 +75,7 @@ optSpec = Options <$> (dtTrad <|> dtK8s) <*> configFileParser
 
 --------------------------------------------------------------------------------
 
-sigHandler :: RunCtx EventX Config -> Posix.Signal -> IO ()
+sigHandler :: Ctx -> Posix.Signal -> IO ()
 sigHandler _run_ctx _sig = do
     pass
 
@@ -98,22 +118,11 @@ cfgParser = yamlParser
 
 --------------------------------------------------------------------------------
 
-type AppConstraints m
-    = ( MonadIO m
-      , MonadMask m
-      , MonadFail m
-      , MonadTime m
-      , MonadEventLogger m
-      , MonadLoggerConsoleAdd m
-      , MonadUnixSignals m
-      , MonadUnixSignalsRaise m
-      , MonadEventQueueRead m
-      , MonadEventQueueListen m
-      , MonadConfigGet m
-      , MonadConfigChangeBlockingReact m
-      )
+data MyState = MyState Int
 
-getAppConfigFilepath :: Executor a => a -> RunCtx ev cfg -> Text
+--------------------------------------------------------------------------------
+
+getAppConfigFilepath :: Executor a => a -> RunCtx ev opts cfg -> Text
 getAppConfigFilepath exec run_ctx = do
     let d        = fsDirJoin (fsDirRoot exec) [fsDirMetadata exec]
         fn       = configFilename run_ctx (run_ctx ^. runCtxAppName)
@@ -121,10 +130,9 @@ getAppConfigFilepath exec run_ctx = do
 
     maybe "?" (toText . toFilePath) maybe_fp
 
-myAppSetup :: (AppConstraints m, Executor e) => e -> RunCtx EventX Config -> Options -> m (Either ExitCode Options)
+myAppSetup :: (AppConstraints m, Executor e) => e -> Ctx -> Options -> m (Either ExitCode MyState)
 myAppSetup exec run_ctx opts = do
 
-    setConfigDefault run_ctx Nothing
     setConfigBlockingReadAndParseFor run_ctx (configFile opts)
 
     let app_cfg_fp = getAppConfigFilepath exec run_ctx
@@ -136,10 +144,10 @@ myAppSetup exec run_ctx opts = do
     addSignalHandler run_ctx [Posix.sigHUP, Posix.sigTERM, Posix.sigINT] sigHandler
     raiseSignal run_ctx Posix.sigHUP
 
-    pure (Right opts)
+    pure (Right (MyState 1))
 
 
-heartbeat :: (MonadIO m, MonadEventLogger m, MonadConfigGet m, Executor e) => e -> RunCtx EventX Config -> m ()
+heartbeat :: (MonadIO m, MonadEventLogger m, MonadConfigGet m, Executor e) => e -> Ctx -> m ()
 heartbeat exec run_ctx = do
     liftIO $ threadDelay (10 * 1000000)
 
@@ -151,8 +159,8 @@ heartbeat exec run_ctx = do
 
     heartbeat exec run_ctx
 
-myAppMain :: (AppConstraints m, Executor e) => e -> RunCtx EventX Config -> Options -> m Options
-myAppMain exec run_ctx _opts = do
+myAppMain :: (AppConstraints m, Executor e) => e -> Ctx -> Options -> MyState -> m MyState
+myAppMain exec run_ctx _opts st = do
     heartbeat_h <- liftIO $ async (heartbeat exec run_ctx)
     ch          <- listenEventQueue run_ctx
     loop ch heartbeat_h
@@ -163,7 +171,7 @@ myAppMain exec run_ctx _opts = do
     loop ch heartbeat_h = do
         maybe_ev <- readEventQueue ch
         case maybe_ev of
-            Nothing                             -> pure _opts
+            Nothing                             -> pure st
             Just (LogEventWithDetails _ _ _ ev) -> case ev of
                 LogCmdAddAMFEv ev_amf -> do
                     case ev_amf of
@@ -173,23 +181,23 @@ myAppMain exec run_ctx _opts = do
                                     loop ch heartbeat_h
                                 | sig == Posix.sigINT -> do
                                     cleanup heartbeat_h
-                                    pure _opts
+                                    pure st
                                 | sig == Posix.sigTERM -> do
                                     cleanup heartbeat_h
-                                    pure _opts
+                                    pure st
                                 | otherwise -> loop ch heartbeat_h
                         _ -> loop ch heartbeat_h
                 _ -> do
                     loop ch heartbeat_h
 
-myAppFinish :: (AppConstraints m) => RunCtx e c -> v -> m ()
+myAppFinish :: (AppConstraints m) => Ctx -> MyState -> m ()
 myAppFinish _run_ctx _ = do
     pass
 
 
 --------------------------------------------------------------------------------
 
-app :: (AppConstraints m, Executor e) => AppSpec m e EventX Options Config Options
+app :: (AppConstraints m, Executor e) => AppSpec m e EventX Options Config MyState
 app = AppSpec { appName    = "amf-daemon"
               , optionSpec = newOptSpec "amf-daemon example" optSpec
               , configSpec = newConfigSpec cfgParser
@@ -199,5 +207,4 @@ app = AppSpec { appName    = "amf-daemon"
               }
 
 main :: IO ()
-main = do
-    runAppSpecAsDaemon app
+main = runAppSpecAsDaemon app

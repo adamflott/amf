@@ -19,9 +19,9 @@ class Executor a where
   fsFileAppInfo :: a -> Maybe (Path Rel File)
   fsDirCache :: a -> Maybe (Path Rel Dir)
 
-  initExec :: (MonadIO m, MonadEnv m) => RunCtx ev c -> m (Either Text a)
-  setupExec ::  (MonadIO m, MonadEnv m, MonadEventLogger m, MonadFileSystemRead m, Show c) => RunCtx ev c -> a -> m (Either Text a)
-  finishExec :: (MonadIO m, MonadEventLogger m) => RunCtx ev c -> a -> m (Either Text a)
+  initExec :: (MonadIO m, MonadEnv m) => RunCtx ev opts cfg -> m (Either Text a)
+  setupExec ::  (MonadIO m, MonadEnv m, MonadEventLogger m, MonadFileSystemRead m, Show cfg) => RunCtx ev opts cfg -> a -> m (Either Text a)
+  finishExec :: (MonadIO m, MonadEventLogger m) => RunCtx ev opts cfg -> a -> m (Either Text a)
 
 
 fsDirJoin :: Maybe (Path b Dir) -> [Maybe (Path Rel Dir)] -> Maybe (Path b Dir)

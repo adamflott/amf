@@ -6,7 +6,6 @@ import           Relude
 import           System.Exit                    ( ExitCode )
 
 -- Hackage
-import           Control.Monad.Catch            ( MonadMask )
 import           Options.Applicative
 import qualified Data.YAML                     as YAML
 
@@ -23,13 +22,13 @@ data OptionSpec a = OptionSpec
     }
 
 
-data AppSpec m e ev opt cfg a = AppSpec
+data AppSpec m e ev opts cfg a = AppSpec
     { appName    :: Text
-    , optionSpec :: OptionSpec opt
+    , optionSpec :: OptionSpec opts
     , configSpec :: ConfigSpec cfg
-    , appSetup   :: MonadMask m => (e -> RunCtx ev cfg -> opt -> m (Either ExitCode a))
-    , appMain    :: e -> RunCtx ev cfg -> opt -> m a
-    , appEnd     :: RunCtx ev cfg -> a -> m ()
+    , appSetup   :: e -> RunCtx ev opts cfg -> opts -> m (Either ExitCode a)
+    , appMain    :: e -> RunCtx ev opts cfg -> opts -> a -> m a
+    , appEnd     :: RunCtx ev opts cfg -> a -> m ()
     }
 
 

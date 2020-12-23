@@ -15,7 +15,7 @@ import           AMF.Types.SystemInfo
 import           AMF.Types.Config
 
 
-data RunCtx ev cfg = RunCtx
+data RunCtx ev opts cfg = RunCtx
     { _runCtxAppName       :: Text
     , _runCtxSystemInfo    :: SystemInfo
     , _runCtxEnvVars       :: [(Text, Text)]
@@ -23,6 +23,7 @@ data RunCtx ev cfg = RunCtx
     , _runCtxCwd           :: Path Abs Dir
     , _runCtxStartTime     :: Time
     , _runCtxLogger        :: LoggerCtx ev
+    , _runCtxOptions       :: opts
     , _runCtxConfigParser  :: ConfigParser cfg
     , _runCtxConfigDefault :: Maybe cfg
     , _runCtxConfig        :: TVar (Map Text cfg)

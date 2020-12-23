@@ -24,8 +24,8 @@ import           Paths_amf
 amfVersion :: Version
 amfVersion = Paths_amf.version
 
-init :: (MonadIO m, MonadEnv m, MonadArguments m, MonadFileSystemRead m, MonadTime m) => Text -> ConfigParser cfg -> m (RunCtx ev cfg)
-init app_name cfg_parser = do
+init :: (MonadIO m, MonadEnv m, MonadArguments m, MonadFileSystemRead m, MonadTime m) => Text -> ConfigParser cfg -> opts -> m (RunCtx ev opts cfg)
+init app_name cfg_parser opts = do
     log_cfg <- newConfig newEmptyOutputs
     logger  <- newLoggingCtx log_cfg
 
@@ -37,6 +37,7 @@ init app_name cfg_parser = do
         <*> getCurrentDirectory
         <*> getNow
         <*> pure logger
+        <*> pure opts
         <*> pure cfg_parser
         <*> pure Nothing
         <*> newTVarIO mempty

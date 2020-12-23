@@ -67,13 +67,13 @@ instance Executor Traditional where
 
         pure (Right ctx)
 
-configFilename :: (ToString a, Semigroup a, IsString a) => RunCtx ev cfg -> a -> Path Rel File
+configFilename :: (ToString a, Semigroup a, IsString a) => RunCtx ev opts cfg -> a -> Path Rel File
 configFilename run_ctx pn = case (run_ctx ^. runCtxConfigParser) of
     ConfigParserYAML _ -> case parseRelFile (toString (pn <> ".yaml")) of
         Nothing -> [relfile|daemon.yaml|]
         Just v  -> v
 
-setup :: (IsString a, MonadIO m, MonadEventLogger m, MonadFileSystemRead m) => RunCtx ev cfg -> Traditional -> m (Either a Traditional)
+setup :: (IsString a, MonadIO m, MonadEventLogger m, MonadFileSystemRead m) => RunCtx ev opts cfg -> Traditional -> m (Either a Traditional)
 setup run_ctx ctx@(Traditional pn m _) = do
     let maybe_dir = fsDirJoin (fsDirRoot ctx) [fsDirMetadata ctx]
     let fn        = configFilename run_ctx pn
@@ -96,7 +96,7 @@ setup run_ctx ctx@(Traditional pn m _) = do
         pure (Right (Traditional pn m (Just l)))
 
 
-storeX :: (MonadIO m, MonadEventLogger m) => RunCtx ev cfg -> Text -> cfg -> m ()
+storeX :: (MonadIO m, MonadEventLogger m) => RunCtx ev opts cfg -> Text -> cfg -> m ()
 storeX run_ctx fn cfg = do
     liftIO $ atomically $ modifyTVar' (run_ctx ^. runCtxConfig) $ \cfg_map -> do
         case Map.lookup fn cfg_map of
@@ -104,7 +104,7 @@ storeX run_ctx fn cfg = do
             Just _  -> Map.adjust (\_ -> cfg) (fn) cfg_map
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigStore)
 
-readAndParse :: (Monad m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev cfg -> Path b1 File -> m (Either ConfigParseResult cfg)
+readAndParse :: (Monad m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev opts cfg -> Path b1 File -> m (Either ConfigParseResult cfg)
 readAndParse run_ctx fp = do
     maybe_read <- AMF.Types.FileSystem.readFile fp
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigRead)
@@ -116,7 +116,7 @@ readAndParse run_ctx fp = do
                 ConfigParserYAML parser -> pure (parser contents)
 
 
-configChangeHandler :: (MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev cfg -> Event -> m ()
+configChangeHandler :: (MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev opts cfg -> Event -> m ()
 configChangeHandler run_ctx fs_ev = do
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigFSEvent fs_ev)
     whenJust (parseAbsFile (eventPath fs_ev)) $ \fp -> do
@@ -129,10 +129,11 @@ configChangeHandler run_ctx fs_ev = do
                 storeX run_ctx (toText (toFilePath fp)) cfg
     pass
 
-runAppSpecAsDaemon :: (Eventable ev, Show ev, Show c) => AppSpec IO Traditional ev a c a -> IO ()
+
+runAppSpecAsDaemon :: (Eventable ev, Show ev, Show cfg) => AppSpec IO Traditional ev opts cfg a -> IO ()
 runAppSpecAsDaemon (AppSpec name opt_spec cfg_spec app_setup app_main app_end) = withUtf8 $ do
     opts    <- parseOpts opt_spec
-    run_ctx <- Common.init name (_confSpecParser cfg_spec)
+    run_ctx <- Common.init name (_confSpecParser cfg_spec) opts
     let log_ctx = run_ctx ^. runCtxLogger
 
     log_h               <- startLogger log_ctx
@@ -168,7 +169,7 @@ runAppSpecAsDaemon (AppSpec name opt_spec cfg_spec app_setup app_main app_end) =
                                 Relude.exitWith ec
                             Right setup_val -> do
                                 AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvPhase Main)
-                                app_handle <- async (app_main t' run_ctx setup_val)
+                                app_handle <- async (app_main t' run_ctx opts setup_val)
 
                                 main_val   <- wait app_handle
 
