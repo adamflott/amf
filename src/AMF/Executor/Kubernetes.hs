@@ -14,11 +14,12 @@ import           Kubernetes.Client              ( KubeConfigSource(..)
 --import Network.TLS            (credentialLoadX509)
 import qualified Data.Map.Strict               as Map
 
+-- local
+import           AMF.Events
+import           AMF.Executor.Common           as Common
+import           AMF.Types.AppSpec
 import           AMF.Types.Executor
---import           AMF.Executor.Common           as Common
---import           AMF.API
---import           AMF.Types.Environment
---import           AMF.Events
+
 
 data K8s = K8s
     { _appName :: Text
@@ -43,6 +44,10 @@ instance Executor K8s where
     setupExec _ _ = pure (Left "TODO")
 
     finishExec _ _ = pure (Left "TODO")
+
+runAppSpecAsK8s :: (Eventable ev, Show ev, Show cfg) => AppSpec IO K8s ev opts cfg a -> IO ()
+runAppSpecAsK8s = runAppSpec
+
 
 {-
 $ ls -al /var/run/secrets/

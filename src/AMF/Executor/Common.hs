@@ -7,13 +7,24 @@ import           Relude
 import           Data.Version                   ( Version )
 
 -- Hackage
+import           Chronos
+import           Control.Concurrent.Async
+import           Control.Lens
+import           Main.Utf8
 
 -- local
 import           AMF.API
+import           AMF.API.Log
 import           AMF.API.SystemInfo
+import           AMF.Events
 import           AMF.Logging
+import           AMF.Logging.Outputs.Console
+import           AMF.Logging.Types.Console
+import           AMF.Logging.Types.Level
+import           AMF.Types.AppSpec
 import           AMF.Types.Config
 import           AMF.Types.Environment
+import           AMF.Types.Executor
 import           AMF.Types.FileSystem
 import           AMF.Types.RunCtx
 
@@ -41,3 +52,56 @@ init app_name cfg_parser opts = do
         <*> pure cfg_parser
         <*> pure Nothing
         <*> newTVarIO mempty
+
+runAppSpec :: (Eventable ev, Show ev, Show cfg, Executor ex) => AppSpec IO ex ev opts cfg a -> IO ()
+runAppSpec (AppSpec name opt_spec cfg_spec app_setup app_main app_end) = withUtf8 $ do
+    opts    <- parseOpts opt_spec
+    run_ctx <- AMF.Executor.Common.init name (_confSpecParser cfg_spec) opts
+    let log_ctx = run_ctx ^. runCtxLogger
+
+    log_h               <- startLogger log_ctx
+    maybe_logger_stdout <- newConsoleOutput LogLevelAll LogFormatLine LogOutputStdOut
+    case maybe_logger_stdout of
+        Left  _             -> pass
+        Right logger_stdout -> addLogger log_ctx logger_stdout
+
+    maybe_t <- initExec run_ctx
+    case maybe_t of
+        Left err -> do
+            print err
+            pass
+        Right t -> do
+            setup_exec_result <- setupExec run_ctx t
+            case setup_exec_result of
+                Left err -> do
+                    print err
+                    _ <- finishExec run_ctx t
+                    pass
+                Right t' -> do
+                    (uptime, result) <- stopwatch $ do
+
+                        logAllSysInfo run_ctx t'
+
+                        AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvStart amfVersion)
+                        AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvPhase Setup)
+
+                        setup_result <- app_setup t' run_ctx opts
+                        case setup_result of
+                            Left ec -> do
+                                Relude.exitWith ec
+                            Right setup_val -> do
+                                AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvPhase Main)
+                                app_handle <- async (app_main t' run_ctx opts setup_val)
+
+                                main_val   <- wait app_handle
+
+                                AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvPhase Finish)
+                                app_end run_ctx main_val
+
+                    AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvStop amfVersion uptime)
+
+                    _ <- finishExec run_ctx t'
+
+                    stopLogger log_ctx log_h
+
+                    pure result
