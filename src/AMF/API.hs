@@ -7,10 +7,11 @@ import           Relude
 
 -- Hackage
 import           BroadcastChan
-import           Control.Lens
 import           Chronos
-import qualified System.Posix                  as Posix
+import           Control.Lens
+import           Control.Monad.Catch                     ( MonadMask )
 import qualified Data.Map.Strict               as Map
+import qualified System.Posix                  as Posix
 
 -- local
 import           AMF.Types.Common
@@ -23,6 +24,21 @@ import           AMF.Logging.Types.OutputsInterface
 import           AMF.Types.SystemInfo
 import           AMF.Types.RunCtx
 
+
+type AllAppConstraints m
+    = ( MonadIO m
+      , MonadMask m
+      , MonadFail m
+      , MonadTime m
+      , MonadEventLogger m
+      , MonadLoggerConsoleAdd m
+      , MonadUnixSignals m
+      , MonadUnixSignalsRaise m
+      , MonadEventQueueRead m
+      , MonadEventQueueListen m
+      , MonadConfigGet m
+      , MonadConfigChangeBlockingReact m
+      )
 
 
 class (Monad m, MonadIO m) => MonadUnixSignals m where
