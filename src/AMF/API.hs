@@ -9,7 +9,7 @@ import           Relude
 import           BroadcastChan
 import           Chronos
 import           Control.Lens
-import           Control.Monad.Catch                     ( MonadMask )
+import           Control.Monad.Catch            ( MonadMask )
 import qualified Data.Map.Strict               as Map
 import qualified System.Posix                  as Posix
 
@@ -23,6 +23,7 @@ import           AMF.Logging.Types.Level
 import           AMF.Logging.Types.OutputsInterface
 import           AMF.Types.SystemInfo
 import           AMF.Types.RunCtx
+
 
 
 type AllAppConstraints m

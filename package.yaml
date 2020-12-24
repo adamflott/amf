@@ -175,6 +175,16 @@ executables:
     dependencies:
     - amf
 
+  amf-script-basic:
+    main:                Main.hs
+    source-dirs:         examples/script-basic
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - amf
+
 tests:
   amf-test:
     main:                Spec.hs

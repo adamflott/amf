@@ -14,6 +14,8 @@ import qualified System.Envy                   as Envy
 -- local
 import           AMF.Types.Config
 import           AMF.Types.RunCtx
+import           AMF.Events
+import           AMF.API
 
 
 type EnvParser a = (Either String a)
@@ -41,13 +43,38 @@ data AppSpec m e ev env opts cfg a = AppSpec
 
 --------------------------------------------------------------------------------
 
+
+data NoEvent = NoEvent
+    deriving stock (Generic, Show)
+
+data NoEnv = NoEnv
+    deriving stock Generic
+
+data NoOpts = NoOpts
+type NoConfig = ()
+
+
+
+
+instance Eventable NoEvent where
+    toFmt _ _ _ _ _ _ _ = Nothing
+
+
+--------------------------------------------------------------------------------
+
 newEnvSpec :: EnvSpec a
 newEnvSpec = undefined
+
+instance Envy.FromEnv NoEnv where
+    fromEnv _ = pure NoEnv
 
 --------------------------------------------------------------------------------
 
 newOptSpec :: Text -> OptionParser a -> OptionSpec a
 newOptSpec = OptionSpec
+
+emptyOptSpec :: OptionSpec NoOpts
+emptyOptSpec = OptionSpec "no options" (pure NoOpts)
 
 parseOpts :: OptionSpec a -> IO a
 parseOpts spec = customExecParser (prefs (showHelpOnEmpty <> showHelpOnError)) (appOpts (_optSpec spec) (_optSpecDesc spec))
@@ -77,3 +104,22 @@ tomlParser p =
 
 newConfigSpec :: ConfigParser b -> ConfigSpec b
 newConfigSpec = ConfigSpec
+
+--------------------------------------------------------------------------------
+
+noAppSetup _ _run_ctx _cfg = do
+    pure (Right ())
+
+noAppFinish :: (AllAppConstraints m) => RunCtx ev env opts cfg -> () -> m ()
+noAppFinish _run_ctx _ = do
+    pass
+
+defaultAppSpec :: AppSpec m e ev NoEnv NoOpts NoConfig ()
+defaultAppSpec = AppSpec { appName    = "untitled"
+                         , envSpec    = newEnvSpec
+                         , optionSpec = emptyOptSpec
+                         , configSpec = newConfigSpec (ConfigParser "no config" (\_ -> Right ()))
+                         , appSetup   = undefined
+                         , appMain    = undefined
+                         , appEnd     = undefined
+                         }

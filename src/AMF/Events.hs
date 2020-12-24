@@ -34,7 +34,8 @@ import           AMF.Logging.Types.Level
 import           AMF.Types.Common
 import           AMF.Types.SystemInfo
 
-class Aeson.ToJSON a => Eventable a where
+-- TODO Aeson.ToJSON a =>
+class Eventable a where
   toFmt :: LogFormat -> HostName -> UserName -> Time -> (ProcessId, ThreadId) -> LogLevel -> a -> Maybe LByteString
 
 
