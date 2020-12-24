@@ -30,8 +30,8 @@ instance FromEnv Config where
 optSpec :: OptionParser Config
 optSpec = Config <$> optional optI <*> optional optS
   where
-    optI = option auto (long "int" <> short 'i' <> help "Int")
-    optS = strOption (long "str" <> short 's' <> metavar "STR" <> value "" <> showDefault <> help "")
+    optI = option auto (long "int" <> short 'i' <> value 1 <> showDefault <> help "Int")
+    optS = strOption (long "str" <> short 's' <> metavar "STR" <> value "I'm a string!" <> showDefault <> help "String")
 
 
 --------------------------------------------------------------------------------
