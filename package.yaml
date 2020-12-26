@@ -150,6 +150,7 @@ dependencies:
 - unordered-containers
 - vty
 - with-utf8
+- validation-selective
 
 library:
   source-dirs: src

@@ -19,6 +19,7 @@ import qualified Data.YAML                     as YAML
 import           Path
 import qualified Toml                          as TOML
 import           System.Envy
+import           Validation
 
 -- local
 import           AMF.API
@@ -199,13 +200,16 @@ myAppFinish _run_ctx _ = do
     pass
 
 
+cfgValidator :: ConfigValidator Config
+cfgValidator = ConfigValidator \v -> Validation.Success v
+
 --------------------------------------------------------------------------------
 
 app :: (AppConstraints m, Executor e) => AppSpec m e EventX Config Config Config MyState
 app = AppSpec { appName    = "amf-daemon"
               , envSpec    = newEnvSpec
               , optionSpec = newOptSpec "amf-daemon example" optSpec
-              , configSpec = newConfigSpec cfgParser
+              , configSpec = newConfigSpec cfgParser cfgValidator
               , appSetup   = myAppSetup
               , appMain    = myAppMain
               , appEnd     = myAppFinish

@@ -7,6 +7,7 @@ import           System.Exit                    ( ExitCode )
 
 -- Hackage
 import           Options.Applicative
+import           Validation
 import qualified Data.YAML                     as YAML
 import qualified Toml                          as TOML
 import qualified System.Envy                   as Envy
@@ -102,8 +103,11 @@ tomlParser p =
             Right v'  -> Right v'
     )
 
-newConfigSpec :: ConfigParser b -> ConfigSpec b
+newConfigSpec :: ConfigParser a -> ConfigValidator a -> ConfigSpec a
 newConfigSpec = ConfigSpec
+
+noValidateConfig :: ConfigValidator a
+noValidateConfig = ConfigValidator Validation.Success
 
 --------------------------------------------------------------------------------
 
@@ -118,7 +122,7 @@ defaultAppSpec :: AppSpec m e ev NoEnv NoOpts NoConfig ()
 defaultAppSpec = AppSpec { appName    = "untitled"
                          , envSpec    = newEnvSpec
                          , optionSpec = emptyOptSpec
-                         , configSpec = newConfigSpec (ConfigParser "no config" (\_ -> Right ()))
+                         , configSpec = newConfigSpec (ConfigParser "no config" (\_ -> Right ())) noValidateConfig
                          , appSetup   = undefined
                          , appMain    = undefined
                          , appEnd     = undefined

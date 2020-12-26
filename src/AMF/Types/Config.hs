@@ -6,6 +6,7 @@ import           Relude
 import           Text.Show
 
 -- Hackage
+import           Validation
 
 
 data ConfigParseErr
@@ -17,8 +18,10 @@ instance Show ConfigParseErr where
         ConfigParseErrIO e -> Relude.show e
         ConfigParserErr  e -> Relude.show e
 
-data ConfigParser b = ConfigParser Text (LByteString -> Either ConfigParseErr b)
+data ConfigParser a = ConfigParser Text (LByteString -> Either ConfigParseErr a)
+newtype ConfigValidator a = ConfigValidator (a -> Validation ConfigParseErr a)
 
-data ConfigSpec b = ConfigSpec
-    { _confSpecParser :: ConfigParser b
+data ConfigSpec a = ConfigSpec
+    { _confSpecParser    :: ConfigParser a
+    , _confSpecValidator :: ConfigValidator a
     }

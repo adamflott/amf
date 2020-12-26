@@ -106,7 +106,7 @@ app :: (AllAppConstraints m) => AppSpec m e AppEvent AppConfig AppConfig AppConf
 app = AppSpec { appName    = "amf-script"
               , envSpec    = newEnvSpec
               , optionSpec = newOptSpec "amf-script example" optSpec
-              , configSpec = newConfigSpec cfgParser
+              , configSpec = newConfigSpec cfgParser noValidateConfig
               , appSetup   = myAppSetup
               , appMain    = myAppMain
               , appEnd     = myAppFinish

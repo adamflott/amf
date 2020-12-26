@@ -40,11 +40,11 @@ amfVersion = Paths_amf.version
 init
     :: (MonadIO m, MonadFail m, MonadEnv m, MonadArguments m, MonadFileSystemRead m, MonadTime m, Envy.FromEnv env)
     => Text
-    -> ConfigParser cfg
+    -> ConfigSpec cfg
     -> opts
     -> EnvSpec env
     -> m (RunCtx ev env opts cfg)
-init app_name cfg_parser opts _ = do
+init app_name (ConfigSpec cfg_parser cfg_validator) opts _ = do
     log_cfg        <- newConfig newEmptyOutputs
     logger         <- newLoggingCtx log_cfg
 
@@ -64,15 +64,16 @@ init app_name cfg_parser opts _ = do
                 <*> pure env_vars
                 <*> pure opts
                 <*> pure cfg_parser
+                <*> pure cfg_validator
                 <*> pure Nothing
                 <*> newTVarIO mempty
 
 runAppSpec :: (Eventable ev, Show ev, Envy.FromEnv env, Show cfg, Executor ex) => AppSpec IO ex ev env opts cfg a -> IO ()
 runAppSpec (AppSpec name env_spec opt_spec cfg_spec app_setup app_main app_end) = withUtf8 $ do
     opts    <- parseOpts opt_spec
-    run_ctx <- AMF.Executor.Common.init name (_confSpecParser cfg_spec) opts env_spec
-    let log_ctx = run_ctx ^. runCtxLogger
+    run_ctx <- AMF.Executor.Common.init name cfg_spec opts env_spec
 
+    let log_ctx = run_ctx ^. runCtxLogger
     log_h               <- startLogger log_ctx
     maybe_logger_stdout <- newConsoleOutput LogLevelAll LogFormatLine LogOutputStdOut
     case maybe_logger_stdout of

@@ -16,18 +16,19 @@ import           AMF.Types.Config
 
 
 data RunCtx ev env opts cfg = RunCtx
-    { _runCtxAppName       :: Text
-    , _runCtxSystemInfo    :: SystemInfo
-    , _runCtxEnvVars       :: [(Text, Text)]
-    , _runCtxArgs          :: [Text]
-    , _runCtxCwd           :: Path Abs Dir
-    , _runCtxStartTime     :: Time
-    , _runCtxLogger        :: LoggerCtx ev
-    , _runCtxEnv           :: env
-    , _runCtxOptions       :: opts
-    , _runCtxConfigParser  :: ConfigParser cfg
-    , _runCtxConfigDefault :: Maybe cfg
-    , _runCtxConfig        :: TVar (Map Text cfg)
+    { _runCtxAppName         :: Text
+    , _runCtxSystemInfo      :: SystemInfo
+    , _runCtxEnvVars         :: [(Text, Text)]
+    , _runCtxArgs            :: [Text]
+    , _runCtxCwd             :: Path Abs Dir
+    , _runCtxStartTime       :: Time
+    , _runCtxLogger          :: LoggerCtx ev
+    , _runCtxEnv             :: env
+    , _runCtxOptions         :: opts
+    , _runCtxConfigParser    :: ConfigParser cfg
+    , _runCtxConfigValidator :: ConfigValidator cfg
+    , _runCtxConfigDefault   :: Maybe cfg
+    , _runCtxConfig          :: TVar (Map Text cfg)
     }
 
 makeLenses ''RunCtx

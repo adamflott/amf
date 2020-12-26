@@ -8,6 +8,7 @@ import           Relude
 import           Control.Lens
 import           Path
 import           System.FSNotify
+import           Validation
 import qualified Data.Map.Strict               as Map
 import qualified System.Envy                   as Envy
 
@@ -76,7 +77,7 @@ setup run_ctx ctx@(Daemon pn m _) = do
 
   where
     parse (Just d) (Just fn) = do
-        r <- readAndParse run_ctx fn
+        r <- readParseAndValidate run_ctx fn
         store d (toText (toFilePath fn)) r
     parse Nothing _ = do
         pure (Right (Daemon pn m Nothing))
@@ -98,8 +99,9 @@ storeX run_ctx fn cfg = do
             Just _  -> Map.adjust (\_ -> cfg) (fn) cfg_map
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigStore)
 
-readAndParse :: (Monad m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev env opts cfg -> Path b1 File -> m (Either (ConfigParseErr) cfg)
-readAndParse run_ctx fp = do
+readParseAndValidate
+    :: (Monad m, MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev env opts cfg -> Path b1 File -> m (Either ConfigParseErr cfg)
+readParseAndValidate run_ctx fp = do
     maybe_read <- AMF.Types.FileSystem.readFile fp
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigRead)
     case maybe_read of
@@ -107,14 +109,22 @@ readAndParse run_ctx fp = do
         Right contents -> do
             AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigParse)
             case (run_ctx ^. runCtxConfigParser) of
-                ConfigParser _ parser -> pure (parser contents)
+                ConfigParser _ parser -> do
+                    case pure (parser contents) of
+                        Left  err            -> pure (Left err)
+                        Right unvalidate_cfg -> do
+                            case unvalidate_cfg of
+                                Left  err -> pure (Left err)
+                                Right c   -> do
+                                    let (ConfigValidator v) = (run_ctx ^. runCtxConfigValidator)
+                                    pure (validationToEither (v c))
 
 
 configChangeHandler :: (MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev env opts cfg -> Event -> m ()
 configChangeHandler run_ctx fs_ev = do
     AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigFSEvent fs_ev)
     whenJust (parseAbsFile (eventPath fs_ev)) $ \fp -> do
-        maybe_cfg <- readAndParse run_ctx fp
+        maybe_cfg <- readParseAndValidate run_ctx fp
         case maybe_cfg of
             Left err -> do
                 print err
