@@ -49,7 +49,6 @@ extra-deps:
 - contiguous-0.5.1@sha256:902b74d8e369fef384c20b116c3c81e65eca2672d79f525ab374fe98ee50e9d4,1757
 - docker-0.6.0.4@sha256:3540f151e02273909f85b152ee42b0801bc195de349c360889e30b39a19e1b1c,4044
 - dockerfile-creator-0.1.0.0@sha256:704e12cd2e3f07ec6704c6a2739a2e5129cea8abd08fa5c519cfc9dd346b97bf,2108
-- ip-1.7.2@sha256:2148bbc7b5e66ea7273b6014bb30483cc656b2cd4e53efaf165c2223bdbbeb46,3742
 - natural-arithmetic-0.1.2.0@sha256:ac25a0561c8378530a62f02df83680afb193ed1059bb43e3130e0074b5b3f16b,3411
 - optparse-applicative-0.16.1.0@sha256:d410cc76e288b93d4ee7e06addc0381a7eaea43bcee0c3ced03f05cadec2f2fc,4836
 - path-0.8.0@sha256:2ce69c2e537741aeead2f5d3ad2adafd6a7959015a50088bb3883ef84a7d792f,3077
@@ -62,6 +61,10 @@ extra-deps:
 - oidc-client-0.6.0.0@sha256:2079dc5c9dfb5b3e2fa93098254ca16787c01a0cd3634b1d84afe84c9a6c4825,3368
 - kubernetes-client-0.3.2.0@sha256:bc94e50f06a0525917a44c07177207a3c7cdc4df91e15f68d2e7aae53a216601,4818
 - turtle-1.5.21
+- git: "https://github.com/erikd/wide-word"
+  commit: 1a17095fc74db7f20db361642313d5e53ffd1eb7
+- git: "https://github.com/adamflott/haskell-ip"
+  commit: 32a88e515a14099e9d1ea668a4304e189dd6f7db
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

@@ -27,4 +27,6 @@ class MonadIO m => Output m a where
   closeOutput :: OutputHandle a -> m (Maybe (Error a))
   writeOutput :: OutputHandle a -> LByteString -> m ()
 
+  rotateOutput :: OutputHandle a -> m ()
+
   healthCheck :: OutputHandle a -> m HealthCheck

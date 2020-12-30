@@ -3,7 +3,8 @@
 module AMF.Events
     ( Eventable(..)
     , AMFEvent(..)
-    , Phase(..)
+    , ExecPhase(..)
+    , AppPhase(..)
     , fmtTime
     , truncateThreadId
     , timespanToString
@@ -17,7 +18,7 @@ import           Relude
 import           Control.Concurrent             ( ThreadId )
 import           Data.Version
 import           GHC.ByteOrder
-
+import qualified Text.Show                      ( Show(..) )
 
 -- Hackage
 import           Chronos
@@ -38,14 +39,6 @@ import           AMF.Types.SystemInfo
 class Eventable a where
   toFmt :: LogFormat -> HostName -> UserName -> Time -> (ProcessId, ThreadId) -> LogLevel -> a -> Maybe LByteString
 
-
-data Phase
-    = Setup
-    | Main
-    | Finish
-    deriving stock (Bounded, Enum, Generic, Show)
-    deriving anyclass (Serialise, Aeson.ToJSON)
-
 data AMFEvent
     = AMFEvStart Version
     | AMFEvStop Version Timespan
@@ -56,7 +49,8 @@ data AMFEvent
     | AMFEvSysCompilerInfo Text Version
     | AMFEvRunTimeInfo
 
-    | AMFEvPhase Phase
+    | AMFEvExecPhase ExecPhase
+    | AMFEvAppPhase AppPhase
 
     | AMFEvSigReceived UnixSignal
     | AMFEvSigSent UnixSignal
@@ -154,7 +148,8 @@ amfEvLineFmt ev = "amf:" <> evFmt ev <> "\n"
         AMFEvSysCompilerInfo name vers -> "info.compiler name:" <> show name <+> "version:" <> encodeUtf8 (Data.Version.showVersion vers)
         AMFEvRunTimeInfo               -> "info.runtime"
 
-        AMFEvPhase           phase     -> "phase:" <> show phase
+        AMFEvExecPhase       phase     -> "exec.phase:" <> show phase
+        AMFEvAppPhase        phase     -> "app.phase:" <> show phase
 
         AMFEvSigReceived     sig       -> "signal.received:" <> show sig
         AMFEvSigSent         sig       -> "signal.sent:" <> show sig
@@ -173,6 +168,36 @@ amfEvLineFmt ev = "amf:" <> evFmt ev <> "\n"
         AMFEvConfigRead                -> "config.read"
         AMFEvConfigParse               -> "config.parse"
         AMFEvConfigStore               -> "config.store"
+
+
+--------------------------------------------------------------------------------
+
+
+data ExecPhase
+    = PhaseExecInit
+    | PhaseExecSetup
+    | PhaseExecFinish
+    deriving stock (Bounded, Enum, Generic)
+    deriving anyclass (Serialise, Aeson.ToJSON)
+
+instance Show ExecPhase where
+    show = \case
+        PhaseExecInit   -> "init"
+        PhaseExecSetup  -> "setup"
+        PhaseExecFinish -> "finish"
+
+data AppPhase
+    = PhaseAppSetup
+    | PhaseAppMain
+    | PhaseAppFinish
+    deriving stock (Bounded, Enum, Generic)
+    deriving anyclass (Serialise, Aeson.ToJSON)
+
+instance Show AppPhase where
+    show = \case
+        PhaseAppSetup  -> "setup"
+        PhaseAppMain   -> "main"
+        PhaseAppFinish -> "finish"
 
 
 

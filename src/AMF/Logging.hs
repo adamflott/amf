@@ -20,11 +20,12 @@ module AMF.Logging
     -- | Operations
     , startLogger
     , stopLogger
-   -- , logRotate
+    , logRotate
 
 
     -- * Log Events
     , logAMFEvent
+    , logExecEvent
     , logEvent
 
     -- * Misc.
@@ -75,7 +76,7 @@ getConfig (DynamicLoggerConfig t_cfg) = do
     pure cfg
 
 
-getOutputs :: MonadIO m => LoggerCtx ev -> m LogOutputs
+getOutputs :: MonadIO m => LoggerCtx exec_ev ev -> m LogOutputs
 getOutputs ctx = do
     let dcfg = ctx ^. loggingCtxCfg
 
@@ -86,12 +87,12 @@ getOutputs ctx = do
     outs <- readTVarIO t_outs
     pure outs
 
-getConsoleOutputs :: MonadIO m => LoggerCtx ev -> m [LogOutputConsole]
+getConsoleOutputs :: MonadIO m => LoggerCtx exec_ev ev -> m [LogOutputConsole]
 getConsoleOutputs ctx = do
     outs <- getOutputs ctx
     pure (outs ^. logOutputsConsoles)
 
-getFileOutputs :: MonadIO m => LoggerCtx ev -> m [LogOutputFile]
+getFileOutputs :: MonadIO m => LoggerCtx exec_ev ev -> m [LogOutputFile]
 getFileOutputs ctx = do
     outs <- getOutputs ctx
     pure (outs ^. logOutputsFiles)
@@ -110,7 +111,7 @@ newEmptyOutputs = LogOutputs [] []
 -- | Create a new logging context when given a daemon config and a relative file name
 --
 -- The full path to the file is built from the daemon config and relative file name.
-newLoggingCtx :: MonadIO m => DynamicLoggerConfig -> m (LoggerCtx e)
+newLoggingCtx :: MonadIO m => DynamicLoggerConfig -> m (LoggerCtx exec_ev e)
 newLoggingCtx dcfg = do
     ch_int_in    <- newBroadcastChan
     ch_int_out   <- newBChanListener ch_int_in
@@ -126,7 +127,10 @@ newLoggingCtx dcfg = do
 
 
 -- | Spawn a thread and start reading from the logging channel.
-startLogger :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Show ev, Eventable ev) => LoggerCtx ev -> m LoggerHandle
+startLogger
+    :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Show ev, Eventable exec_ev, Eventable ev)
+    => LoggerCtx exec_ev ev
+    -> m LoggerHandle
 startLogger ctx = do
     console_outs <- getConsoleOutputs ctx
     file_outs    <- getFileOutputs ctx
@@ -144,7 +148,11 @@ startLogger ctx = do
 
     liftIO $ async $ loggerWorker ctx
 
-stopLogger :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Eventable ev, Show ev) => LoggerCtx ev -> LoggerHandle -> m ()
+stopLogger
+    :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Eventable exec_ev, Eventable ev, Show ev)
+    => LoggerCtx exec_ev ev
+    -> LoggerHandle
+    -> m ()
 stopLogger ctx handle = do
     logAMFEvent ctx LogLevelTerse AMFEvLogEventClose
 
@@ -161,11 +169,14 @@ stopLogger ctx handle = do
 --    closeOutputs handles_console
     closeOutputs handles_file
 
-addConsoleLogger :: MonadIO m => LoggerCtx ev -> OutputHandle LogOutputConsole -> m ()
+addConsoleLogger :: MonadIO m => LoggerCtx exec_ev ev -> OutputHandle LogOutputConsole -> m ()
 addConsoleLogger log_ctx out = do
     atomically (modifyTVar' (log_ctx ^. loggingCtxOutputHandlesConsole) (++ [out]))
 
-loggerWorker :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Show ev, Eventable ev) => LoggerCtx ev -> m ()
+loggerWorker
+    :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Show ev, Eventable exec_ev, Eventable ev)
+    => LoggerCtx exec_ev ev
+    -> m ()
 loggerWorker ctx = do
     let hn  = ctx ^. loggingCtxHostName
         ln  = ctx ^. loggingCtxUserName
@@ -178,9 +189,12 @@ loggerWorker ctx = do
     case maybe_ev of
         Nothing -> pass
         Just (LogEventWithDetails ts tid lvl ev) -> do
-            writeOutputs handles_console hn ln ts (pid, tid) lvl ev
-            writeOutputs handles_file    hn ln ts (pid, tid) lvl ev
-            loggerWorker ctx
+            case ev of
+                LogCmdRotate -> loggerWorker ctx
+                _            -> do
+                    writeOutputs handles_console hn ln ts (pid, tid) lvl ev
+                    writeOutputs handles_file    hn ln ts (pid, tid) lvl ev
+                    loggerWorker ctx
 
 
 writeOutputs
@@ -211,14 +225,22 @@ closeOutputs handles = do
         handles
 
 
-logAMFEvent :: (MonadIO m) => LoggerCtx ev -> LogLevel -> AMFEvent -> m ()
+logAMFEvent :: (MonadIO m) => LoggerCtx exec_ev ev -> LogLevel -> AMFEvent -> m ()
 logAMFEvent ctx lvl ev = do
     let ch = ctx ^. loggingCtxIntInEv
     ts  <- liftIO now
     tid <- myThreadId
     void $ writeBChan ch (LogEventWithDetails ts tid lvl (LogCmdAddAMFEv ev))
 
-logEvent :: (MonadIO m) => LoggerCtx ev -> LogLevel -> ev -> m ()
+logExecEvent :: (MonadIO m) => LoggerCtx exec_ev ev -> LogLevel -> exec_ev -> m ()
+logExecEvent ctx lvl ev = do
+    let ch = ctx ^. loggingCtxIntInEv
+    ts  <- liftIO now
+    tid <- myThreadId
+    void $ writeBChan ch (LogEventWithDetails ts tid lvl (LogCmdAddExecEv ev))
+
+
+logEvent :: (MonadIO m) => LoggerCtx exec_ev ev -> LogLevel -> ev -> m ()
 logEvent ctx lvl ev = do
     let ch = ctx ^. loggingCtxIntInEv
     ts  <- liftIO now
@@ -226,7 +248,10 @@ logEvent ctx lvl ev = do
     void $ writeBChan ch (LogEventWithDetails ts tid lvl (LogCmdAddEv ev))
 
 
-drainChan :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Eventable ev, Show ev) => LoggerCtx ev -> m ()
+drainChan
+    :: (MonadIO m, MonadMask m, MonadFileSystemRead m, MonadFileSystemWrite m, Eventable exec_ev, Eventable ev, Show ev)
+    => LoggerCtx exec_ev ev
+    -> m ()
 drainChan ctx = do
     let ch  = ctx ^. loggingCtxIntOutEv
         hn  = ctx ^. loggingCtxHostName
@@ -244,14 +269,15 @@ drainChan ctx = do
             drainChan ctx
 
 
-{-
--- | Rotate log from temporary file name to final name.
-logRotate :: MonadIO m => LoggerCtx e -> m ()
+logRotate :: MonadIO m => LoggerCtx exec_ev e -> m ()
 logRotate ctx = do
-    let ch = _loggingCtxInEv ctx
-    void $ writeBChan ch LogCmdRotate
+    let ch = ctx ^. loggingCtxIntInEv
+    ts  <- liftIO now
+    tid <- myThreadId
+    void $ writeBChan ch (LogEventWithDetails ts tid LogLevelAlways LogCmdRotate)
 
-processLogRotate :: MonadIO m => LoggerCtx e -> m (Either Exception.IOException ())
+{-
+processLogRotate :: MonadIO m => LoggerCtx exec_ev e -> m (Either Exception.IOException ())
 processLogRotate ctx = do
     cfg <- readTVarIO udc
     let log_dir = cfg ^. sgdCfgLogging . sgdCfgLoggingDir

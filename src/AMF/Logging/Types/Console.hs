@@ -12,11 +12,13 @@ import           System.IO                      ( BufferMode(..)
                                                 , hIsClosed
                                                 , hSetBuffering
                                                 )
+import qualified Text.Show                      ( Show(..) )
 
 -- Hackage
 import qualified System.IO.Utf8                as Utf8
 import           Control.Monad.Catch            ( MonadMask )
 import qualified Data.ByteString.Lazy          as BSL
+import           Data.YAML
 
 -- local
 import           AMF.Logging.Types.Format
@@ -27,7 +29,19 @@ import           AMF.Logging.Types.OutputsInterface
 data StdOutOrErr
     = LogOutputStdOut
     | LogOutputStdErr
-    deriving stock (Eq, Generic, Show)
+    deriving stock (Bounded, Enum, Eq, Generic)
+
+instance Show StdOutOrErr where
+    show = \case
+        LogOutputStdOut -> "stdout"
+        LogOutputStdErr -> "stderr"
+
+instance FromYAML StdOutOrErr where
+    parseYAML = withStr "log.output.console.stdout_or_stderr" $ \case
+        "stdout" -> pure LogOutputStdOut
+        "stderr" -> pure LogOutputStdErr
+        other    -> fail (toString other <> " is not a supported console output format. Supported formats: " <> availableFormats)
+            where availableFormats = intercalate "," (fmap show [minBound :: StdOutOrErr .. maxBound])
 
 data LogOutputConsole = LogOutputConsole LogLevel LogFormat StdOutOrErr Handle
     deriving stock Show

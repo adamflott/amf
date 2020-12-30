@@ -149,6 +149,7 @@ dependencies:
 - unliftio
 - unordered-containers
 - vty
+- wide-word
 - with-utf8
 - validation-selective
 

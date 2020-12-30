@@ -5,7 +5,6 @@ import           Relude
 
 -- base
 import           Control.Concurrent             ( threadDelay )
-import           System.Exit
 
 -- Hackage
 import           Codec.Serialise               as CBOR
@@ -17,8 +16,6 @@ import qualified Data.Aeson                    as Aeson
 import qualified System.Posix                  as Posix
 import qualified Data.YAML                     as YAML
 import           Path
-import qualified Toml                          as TOML
-import           System.Envy
 import           Validation
 
 -- local
@@ -33,7 +30,7 @@ import           AMF.Types.Executor
 import           AMF.Types.RunCtx
 import           AMF.Types.AppSpec
 import           AMF.Types.Config
-
+import           AMF.Config.Logging
 
 
 type AppConstraints m
@@ -51,26 +48,31 @@ type AppConstraints m
       , MonadConfigChangeBlockingReact m
       )
 
-type Ctx = RunCtx EventX Config Config Config
+type Ctx = RunCtx EventDaemon EventX NoEnv Config Config
 
 data Config = Config
-    { i :: Int
-    , s :: Text
+    { logging :: ConfLogging
+    , i       :: Int
+    , s       :: Text
     }
     deriving stock (Generic, Show)
-    deriving anyclass (Serialise, Aeson.ToJSON)
+  --  deriving anyclass (Serialise)
 
 
 --------------------------------------------------------------------------------
 
-instance FromEnv Config where
-    fromEnv _ = Config <$> envMaybe "AMF_I" .!= 1 <*> envMaybe "AMF_S" .!= "str"
+--instance FromEnv Config where
+--    fromEnv _ = Config <$> envMaybe "AMF_I" .!= 1 <*> envMaybe "AMF_S" .!= "str"
 
 
 --------------------------------------------------------------------------------
+
+optLogging :: OptionParser ConfLogging
+optLogging = ConfLogging <$> optLoggingEnabled <*> pure [] where optLoggingEnabled = flag' False (long "logging-enabled" <> help "Toggle logging")
+
 
 optSpec :: OptionParser Config
-optSpec = Config <$> optI <*> optS
+optSpec = Config <$> optLogging <*> optI <*> optS
   where
     optI = option auto (long "int" <> short 'i' <> help "Int")
     optS = strOption (long "str" <> short 's' <> metavar "STR" <> value "" <> showDefault <> help "")
@@ -84,7 +86,7 @@ sigHandler _run_ctx _sig = do
 
 --------------------------------------------------------------------------------
 
-data EventX = EventConfig Config
+data EventX = EventConfig Int -- Config
     deriving stock (Generic, Show)
     deriving anyclass (Serialise, Aeson.ToJSON)
 
@@ -105,66 +107,70 @@ daemonEvLineFmt ev = evFmt ev <> "\n"
 
 --------------------------------------------------------------------------------
 
-
 instance YAML.FromYAML Config where
-    parseYAML = YAML.withMap "Example Daemon Config" $ \m -> Config <$> m YAML..: "i" <*> m YAML..: "s"
-
-
-
+    parseYAML = YAML.withMap "Example Daemon Config" $ \m -> Config <$> m YAML..: "logging" <*> m YAML..: "i" <*> m YAML..: "s"
 
 cfgParser :: ConfigParser Config
 cfgParser = parser
-  where
-    parser = tomlParser cfgTOMLCodec
-    cfgTOMLCodec :: TOML.TomlCodec Config
-    cfgTOMLCodec = Config <$> TOML.int "i" TOML..= i <*> TOML.text "s" TOML..= s
+    where
+    --parser = tomlParser cfgTOMLCodec
+    --cfgTOMLCodec :: TOML.TomlCodec Config
+    --cfgTOMLCodec = Config <$> TOML.int "i" TOML..= i <*> TOML.text "s" TOML..= s
     -- or use YAML
-    -- parser = yamlParser
+          parser = yamlParser
 
 --------------------------------------------------------------------------------
 
-data MyState = MyState Int
+data MyState = MyState
+    { _stateInt :: Int
+--    , _stateMetrics :: QueryTable Int
+    }
 
 --------------------------------------------------------------------------------
 
-getAppConfigFilepath :: Executor a => a -> RunCtx ev env opts cfg -> Text
+getAppConfigFilepath :: FS a => a -> RunCtx exec_ev ev env opts cfg -> Text
 getAppConfigFilepath exec run_ctx = do
     let d        = fsDirJoin (fsDirRoot exec) [fsDirMetadata exec]
         fn       = configFilename run_ctx (run_ctx ^. runCtxAppName)
         maybe_fp = fsFileJoin d fn
 
-    maybe "?" (toText . toFilePath) maybe_fp
+    toText . toFilePath $ maybe_fp
 
-myAppSetup :: (AppConstraints m, Executor e) => e -> Ctx -> Config -> m (Either ExitCode MyState)
-myAppSetup exec run_ctx opts = do
-
-    -- setConfigBlockingReadAndParseFor run_ctx (configFile opts)
+myAppSetup
+    :: (FS a1, MonadConfigGet m, MonadUnixSignals m, MonadUnixSignalsRaise m)
+    => a1
+    -> RunCtx EventDaemon EventX NoEnv Config Config
+    -> p
+    -> m (Either a2 MyState)
+myAppSetup exec run_ctx _opts = do
+    let log_ctx    = run_ctx ^. runCtxLogger
 
     let app_cfg_fp = getAppConfigFilepath exec run_ctx
     maybe_cfg <- getConfig run_ctx app_cfg_fp
 
     whenJust maybe_cfg $ \cfg -> do
-        logEvent run_ctx LogLevelTerse (EventConfig cfg)
+        logEvent log_ctx LogLevelTerse (EventConfig 1) -- cfg)
 
     addSignalHandler run_ctx [Posix.sigHUP, Posix.sigTERM, Posix.sigINT] sigHandler
     raiseSignal run_ctx Posix.sigHUP
 
     pure (Right (MyState 1))
 
-
-heartbeat :: (MonadIO m, MonadEventLogger m, MonadConfigGet m, Executor e) => e -> Ctx -> m ()
+heartbeat :: (MonadIO m, FS t, MonadConfigGet m, MonadEventLogger m) => t -> RunCtx exec_ev EventX env opts a -> m b
 heartbeat exec run_ctx = do
+    let log_ctx = run_ctx ^. runCtxLogger
+
     liftIO $ threadDelay (10 * 1000000)
 
     let app_cfg_fp = getAppConfigFilepath exec run_ctx
     maybe_cfg <- getConfig run_ctx app_cfg_fp
 
     whenJust maybe_cfg $ \cfg -> do
-        logEvent run_ctx LogLevelTerse (EventConfig cfg)
+        logEvent log_ctx LogLevelTerse (EventConfig 1) -- cfg)
 
     heartbeat exec run_ctx
 
-myAppMain :: (AppConstraints m, Executor e) => e -> Ctx -> Config -> MyState -> m MyState
+myAppMain :: (AppConstraints m, Executor m EventDaemon e) => e -> Ctx -> Config -> MyState -> m MyState
 myAppMain exec run_ctx _opts st = do
     heartbeat_h <- liftIO $ async (heartbeat exec run_ctx)
     ch          <- listenEventQueue run_ctx
@@ -205,7 +211,7 @@ cfgValidator = ConfigValidator \v -> Validation.Success v
 
 --------------------------------------------------------------------------------
 
-app :: (AppConstraints m, Executor e) => AppSpec m e EventX Config Config Config MyState
+app :: (AppConstraints m, Executor m EventDaemon e) => AppSpec m e EventDaemon EventX NoEnv Config Config MyState
 app = AppSpec { appName    = "amf-daemon"
               , envSpec    = newEnvSpec
               , optionSpec = newOptSpec "amf-daemon example" optSpec

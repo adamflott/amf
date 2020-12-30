@@ -32,14 +32,14 @@ data OptionSpec a = OptionSpec
     }
 
 
-data AppSpec m e ev env opts cfg a = AppSpec
+data AppSpec m e exec_ev ev env opts cfg a = AppSpec
     { appName    :: Text
     , envSpec    :: EnvSpec env
     , optionSpec :: OptionSpec opts
     , configSpec :: ConfigSpec cfg
-    , appSetup   :: e -> RunCtx ev env opts cfg -> opts -> m (Either ExitCode a)
-    , appMain    :: e -> RunCtx ev env opts cfg -> opts -> a -> m a
-    , appEnd     :: RunCtx ev env opts cfg -> a -> m ()
+    , appSetup   :: e -> RunCtx exec_ev ev env opts cfg -> opts -> m (Either ExitCode a)
+    , appMain    :: e -> RunCtx exec_ev ev env opts cfg -> opts -> a -> m a
+    , appEnd     :: RunCtx exec_ev ev env opts cfg -> a -> m ()
     }
 
 --------------------------------------------------------------------------------
@@ -114,11 +114,11 @@ noValidateConfig = ConfigValidator Validation.Success
 noAppSetup _ _run_ctx _cfg = do
     pure (Right ())
 
-noAppFinish :: (AllAppConstraints m) => RunCtx ev env opts cfg -> () -> m ()
+noAppFinish :: (AllAppConstraints m) => RunCtx exec_ev ev env opts cfg -> () -> m ()
 noAppFinish _run_ctx _ = do
     pass
 
-defaultAppSpec :: AppSpec m e ev NoEnv NoOpts NoConfig ()
+defaultAppSpec :: AppSpec m e exec_ev ev NoEnv NoOpts NoConfig ()
 defaultAppSpec = AppSpec { appName    = "untitled"
                          , envSpec    = newEnvSpec
                          , optionSpec = emptyOptSpec

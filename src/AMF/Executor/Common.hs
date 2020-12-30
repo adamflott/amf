@@ -10,7 +10,6 @@ import           System.Exit                    ( ExitCode(..) )
 -- Hackage
 import           Chronos
 import           Control.Concurrent.Async
-import           Control.Lens
 import           Main.Utf8
 import qualified System.Envy                   as Envy
 
@@ -21,6 +20,7 @@ import           AMF.API.SystemInfo
 import           AMF.Events
 import           AMF.Logging
 import           AMF.Logging.Outputs.Console
+import           AMF.Logging.Types
 import           AMF.Logging.Types.Console
 import           AMF.Logging.Types.Level
 import           AMF.Types.AppSpec
@@ -43,11 +43,9 @@ init
     -> ConfigSpec cfg
     -> opts
     -> EnvSpec env
-    -> m (RunCtx ev env opts cfg)
-init app_name (ConfigSpec cfg_parser cfg_validator) opts _ = do
-    log_cfg        <- newConfig newEmptyOutputs
-    logger         <- newLoggingCtx log_cfg
-
+    -> LoggerCtx exec_ev ev
+    -> m (RunCtx exec_ev ev env opts cfg)
+init app_name (ConfigSpec cfg_parser cfg_validator) opts _ log_ctx = do
     maybe_env_vars <- liftIO Envy.decodeEnv
     case maybe_env_vars of
         Left err -> do
@@ -60,7 +58,7 @@ init app_name (ConfigSpec cfg_parser cfg_validator) opts _ = do
                 <*> getArgs
                 <*> getCurrentDirectory
                 <*> getNow
-                <*> pure logger
+                <*> pure log_ctx
                 <*> pure env_vars
                 <*> pure opts
                 <*> pure cfg_parser
@@ -68,24 +66,30 @@ init app_name (ConfigSpec cfg_parser cfg_validator) opts _ = do
                 <*> pure Nothing
                 <*> newTVarIO mempty
 
-runAppSpec :: (Eventable ev, Show ev, Envy.FromEnv env, Show cfg, Executor ex) => AppSpec IO ex ev env opts cfg a -> IO ()
-runAppSpec (AppSpec name env_spec opt_spec cfg_spec app_setup app_main app_end) = withUtf8 $ do
-    opts    <- parseOpts opt_spec
-    run_ctx <- AMF.Executor.Common.init name cfg_spec opts env_spec
 
-    let log_ctx = run_ctx ^. runCtxLogger
+runAppSpec
+    :: (Eventable ev, Show ev, Envy.FromEnv env, Show cfg, Executor IO exec_ev ex)
+    => AppSpec IO ex exec_ev ev env opts cfg a
+    -> LoggerCtx exec_ev ev
+    -> IO ()
+runAppSpec (AppSpec name env_spec opt_spec cfg_spec app_setup app_main app_end) log_ctx = withUtf8 $ do
+    opts                <- parseOpts opt_spec
+    run_ctx             <- AMF.Executor.Common.init name cfg_spec opts env_spec log_ctx
+
     log_h               <- startLogger log_ctx
     maybe_logger_stdout <- newConsoleOutput LogLevelAll LogFormatLine LogOutputStdOut
     case maybe_logger_stdout of
         Left  _             -> pass
         Right logger_stdout -> addLogger log_ctx logger_stdout
 
-    maybe_t <- initExec run_ctx
+    AMF.API.logAMFEvent log_ctx LogLevelAlways (AMFEvExecPhase PhaseExecInit)
+    maybe_t <- initExec run_ctx log_ctx
     case maybe_t of
         Left err -> do
             print err
             pass
         Right t -> do
+            AMF.API.logAMFEvent log_ctx LogLevelAlways (AMFEvExecPhase PhaseExecSetup)
             setup_exec_result <- setupExec run_ctx t
             case setup_exec_result of
                 Left err -> do
@@ -97,24 +101,25 @@ runAppSpec (AppSpec name env_spec opt_spec cfg_spec app_setup app_main app_end) 
 
                         logAllSysInfo run_ctx t'
 
-                        AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvStart amfVersion)
-                        AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvPhase Setup)
+                        AMF.API.logAMFEvent log_ctx LogLevelAlways (AMFEvStart amfVersion)
+                        AMF.API.logAMFEvent log_ctx LogLevelAlways (AMFEvAppPhase PhaseAppSetup)
 
                         setup_result <- app_setup t' run_ctx opts
                         case setup_result of
                             Left ec -> do
                                 Relude.exitWith ec
                             Right setup_val -> do
-                                AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvPhase Main)
+                                AMF.API.logAMFEvent log_ctx LogLevelAlways (AMFEvAppPhase PhaseAppMain)
                                 app_handle <- async (app_main t' run_ctx opts setup_val)
 
                                 main_val   <- wait app_handle
 
-                                AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvPhase Finish)
+                                AMF.API.logAMFEvent log_ctx LogLevelAlways (AMFEvAppPhase PhaseAppFinish)
                                 app_end run_ctx main_val
 
-                    AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvStop amfVersion uptime)
+                    AMF.API.logAMFEvent log_ctx LogLevelAlways (AMFEvStop amfVersion uptime)
 
+                    AMF.API.logAMFEvent log_ctx LogLevelAlways (AMFEvExecPhase PhaseExecFinish)
                     _ <- finishExec run_ctx t'
 
                     stopLogger log_ctx log_h

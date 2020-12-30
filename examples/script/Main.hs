@@ -2,6 +2,7 @@ module Main where
 
 import           AMF.Prelude.Script      hiding ( (</>) )
 
+import           Control.Lens                   ( (^.) )
 import qualified Data.Aeson                    as Aeson
 import qualified System.Posix                  as Posix
 import qualified Data.YAML                     as YAML
@@ -12,7 +13,7 @@ import           Turtle                         ( (</>)
 import           Turtle.Prelude
 
 
-type AppCtx = RunCtx AppEvent AppConfig AppConfig AppConfig
+type AppCtx = RunCtx EventScript AppEvent AppConfig AppConfig AppConfig
 
 data AppConfig = AppConfig
     { i :: Maybe Int
@@ -55,15 +56,15 @@ data AppEvent
 
 instance Eventable AppEvent where
     toFmt fmt hn ln ts (pid, tid) lvl ev = case fmt of
-        LogFormatLine -> Just (defaultLinePrefixFormatter hn ln ts (pid, tid) lvl <+> daemonEvLineFmt ev)
+        LogFormatLine -> Just (defaultLinePrefixFormatter hn ln ts (pid, tid) lvl <+> scriptEvLineFmt ev)
         _             -> Nothing
+      where
+        scriptEvLineFmt :: AppEvent -> LByteString
+        scriptEvLineFmt s_ev = evFmt s_ev <> "\n"
 
-daemonEvLineFmt :: AppEvent -> LByteString
-daemonEvLineFmt ev = evFmt ev <> "\n"
-  where
-    evFmt = \case
-        EventConfig cfg -> "cfg:" <> show cfg
-        EventMkTree dir -> "mktree:" <> show dir
+        evFmt = \case
+            EventConfig cfg -> "cfg:" <> show cfg
+            EventMkTree dir -> "mktree:" <> show dir
 
 --------------------------------------------------------------------------------
 
@@ -78,16 +79,18 @@ cfgParser = yamlParser
 
 myAppSetup :: (AllAppConstraints m) => e -> AppCtx -> AppConfig -> m (Either ExitCode ())
 myAppSetup _ run_ctx cfg = do
+    let log_ctx = run_ctx ^. runCtxLogger
     addSignalHandler run_ctx [Posix.sigHUP, Posix.sigTERM, Posix.sigINT] sigHandler
-    logEvent run_ctx LogLevelTerse (EventConfig cfg)
+    logEvent log_ctx LogLevelTerse (EventConfig cfg)
     pure (Right ())
 
 myAppMain :: (AllAppConstraints m) => e -> AppCtx -> AppConfig -> () -> m ()
 myAppMain _exec run_ctx _opts _st = do
+    let log_ctx = run_ctx ^. runCtxLogger
 
     -- sh like operations and logging
-    let root = "/tmp" </> "amf" </> "logs"
-    logEvent run_ctx LogLevelTerse (EventMkTree (show root))
+    let root    = "/tmp" </> "amf" </> "logs"
+    logEvent log_ctx LogLevelTerse (EventMkTree (show root))
     mktree root
 
     -- run tasks in parallel
@@ -102,7 +105,7 @@ myAppFinish _run_ctx _ = do
 
 --------------------------------------------------------------------------------
 
-app :: (AllAppConstraints m) => AppSpec m e AppEvent AppConfig AppConfig AppConfig ()
+app :: (AllAppConstraints m) => AppSpec m e EventScript AppEvent AppConfig AppConfig AppConfig ()
 app = AppSpec { appName    = "amf-script"
               , envSpec    = newEnvSpec
               , optionSpec = newOptSpec "amf-script example" optSpec

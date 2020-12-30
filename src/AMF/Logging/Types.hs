@@ -11,7 +11,6 @@ module AMF.Logging.Types
     -- * Outputs
     , LogOutputs(..)
     , LogEventWithDetails(..)
-    , runLoggerT
 
     -- * Lenses
     , loggingCtxHostName
@@ -37,12 +36,12 @@ import           Chronos
 import           Control.Concurrent.Async.Lifted
                                                 ( Async )
 import           Control.Lens
-import           Control.Monad.Base             ( MonadBase )
-import           Control.Monad.Catch            ( MonadThrow
-                                                , MonadCatch
-                                                , MonadMask
-                                                )
-import           Control.Monad.Trans.Resource   ( MonadResource )
+--import           Control.Monad.Base             ( MonadBase )
+--import           Control.Monad.Catch            ( MonadThrow
+--                                                , MonadCatch
+--                                                , MonadMask
+--                                                )
+--import           Control.Monad.Trans.Resource   ( MonadResource )
 import           Data.Aeson                    as Aeson
 
 -- local
@@ -66,39 +65,41 @@ newtype DynamicLoggerConfig = DynamicLoggerConfig (TVar LoggerConfig)
 -- | Log event. Includes high resolution time with the thread id that generated the event.
 data LogEventWithDetails ev = LogEventWithDetails
     { _ts  :: !Time
-    , _tid :: !ThreadId
-    , _lvl :: !LogLevel
+    , _tid :: ThreadId
+    , _lvl :: LogLevel
     , _lev :: ev
     }
     deriving stock (Generic, Show)
 
 -- | Controls how the logger process deals with a new channel item.
-data LogCmd ev
+data LogCmd exec_ev ev
     = LogCmdAddEv ev -- ^ add log event
+    | LogCmdAddExecEv exec_ev
     | LogCmdAddAMFEv AMFEvent -- ^ add log event
     | LogCmdRotate -- ^ rotate log file
     deriving stock (Generic, Show)
 
-instance ToJSON ev => ToJSON (LogCmd ev)
+instance (ToJSON exec_ev, ToJSON ev) => ToJSON (LogCmd exec_ev ev)
 
-instance Eventable ev => Eventable (LogCmd ev) where
+instance (Eventable exec_ev, Eventable ev) => Eventable (LogCmd exec_ev ev) where
     toFmt fmt hn ln ts (pid, tid) lvl ev = case ev of
-        LogCmdAddEv    app_ev -> toFmt fmt hn ln ts (pid, tid) lvl app_ev
-        LogCmdAddAMFEv amf_ev -> toFmt fmt hn ln ts (pid, tid) lvl amf_ev
-        _ev                   -> toFmt fmt hn ln ts (pid, tid) lvl _ev
+        LogCmdAddEv     app_ev  -> toFmt fmt hn ln ts (pid, tid) lvl app_ev
+        LogCmdAddExecEv exec_ev -> toFmt fmt hn ln ts (pid, tid) lvl exec_ev
+        LogCmdAddAMFEv  amf_ev  -> toFmt fmt hn ln ts (pid, tid) lvl amf_ev
+        _ev                     -> toFmt fmt hn ln ts (pid, tid) lvl _ev
 
 
 -- TODO
 -- data LogStats = LogStats Int Int
 
 -- | Logger context
-data LoggerCtx ev = LoggerCtx
-    { _loggingCtxHostName             :: !HostName
-    , _loggingCtxUserName             :: !UserName
-    , _loggingCtxProcessId            :: !ProcessId
-    , _loggingCtxCfg                  :: !DynamicLoggerConfig
-    , _loggingCtxIntInEv              :: !(BroadcastChan In (LogEventWithDetails (LogCmd ev)))
-    , _loggingCtxIntOutEv             :: !(BroadcastChan Out (LogEventWithDetails (LogCmd ev)))
+data LoggerCtx exec_ev ev = LoggerCtx
+    { _loggingCtxHostName             :: HostName
+    , _loggingCtxUserName             :: UserName
+    , _loggingCtxProcessId            :: ProcessId
+    , _loggingCtxCfg                  :: DynamicLoggerConfig
+    , _loggingCtxIntInEv              :: BroadcastChan In (LogEventWithDetails (LogCmd exec_ev ev))
+    , _loggingCtxIntOutEv             :: BroadcastChan Out (LogEventWithDetails (LogCmd exec_ev ev))
     , _loggingCtxOutputHandlesConsole :: TVar [OutputHandle LogOutputConsole]
     , _loggingCtxOutputHandlesFile    :: TVar [OutputHandle LogOutputFile]
     }
@@ -109,11 +110,3 @@ makeLenses ''LoggerCtx
 type LoggerHandle = Async ()
 
 
--- | Logger Monad.
-newtype LoggerT m ev a = LoggerT {
-    runLoggerT :: ReaderT (LoggerCtx ev) m a
-    }
-    deriving newtype (Functor, Applicative, Monad)
-    deriving newtype (MonadReader (LoggerCtx ev), MonadThrow, MonadCatch, MonadMask, MonadResource, MonadIO)
-
-deriving newtype instance MonadBase IO m => MonadBase IO (LoggerT m ev)

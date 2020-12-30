@@ -11,11 +11,14 @@ import           System.FSNotify
 import           Validation
 import qualified Data.Map.Strict               as Map
 import qualified System.Envy                   as Envy
+import qualified Data.Aeson                    as Aeson
+import           Codec.Serialise               as CBOR
 
 -- local
 import           AMF.API
 import           AMF.Events
 import           AMF.Executor.Common           as Common
+import           AMF.Logging
 import           AMF.Logging.Types.Level
 import           AMF.Types.AppSpec
 import           AMF.Types.Config
@@ -32,43 +35,66 @@ data Daemon = Daemon
     }
     deriving stock Generic
 
+data EventDaemon = EventDaemon
+    deriving stock (Generic, Show)
+    deriving anyclass (Serialise, Aeson.ToJSON)
 
-instance Executor Daemon where
-    fsDirRoot _ = Just [absdir|/tmp|]
+instance Eventable EventDaemon where
+    toFmt fmt hn ln ts (pid, tid) lvl ev = case fmt of
+        LogFormatLine -> Just (defaultLinePrefixFormatter hn ln ts (pid, tid) lvl <+> daemonEvLineFmt ev)
+        LogFormatJSON -> Just (Aeson.encode ev <> "\n")
+        LogFormatCBOR -> Just (CBOR.serialise ev)
+        LogFormatCSV  -> Nothing
+      where
+        daemonEvLineFmt :: EventDaemon -> LByteString
+        daemonEvLineFmt dev = "daemon:" <> evFmt dev <> "\n"
 
-    fsDirMetadata (Daemon app_name _ _) = (parseRelDir (toString ("etc/" <> app_name)))
-    fsDirLogs _ = Just [reldir|var/logs|]
+        evFmt = \case
+            EventDaemon -> "hi"
 
-    fsFileAppInfo _ = Nothing
+instance FS Daemon where
+    fsDirRoot _ = [absdir|/tmp|]
 
-    fsDirCache _ = Just [reldir|var/cache|]
+    fsDirMetadata (Daemon app_name _ _) = do
+        let d = parseRelDir (toString ("etc/" <> app_name))
+        case d of
+            Nothing -> [reldir|etc/|]
+            Just d' -> d'
 
-    initExec _run_ctx = do
+    fsDirLogs _ = [reldir|var/logs|]
+
+    fsFileAppInfo _ = [relfile|tmp|]
+
+    fsDirCache _ = [reldir|var/cache|]
+
+instance MonadIO m => Executor m EventDaemon Daemon where
+    initExec _run_ctx logger = do
         pn <- getProgName
 
         m  <- liftIO startManager
+        AMF.API.logExecEvent logger LogLevelTerse (EventDaemon)
 
         pure (Right (Daemon pn m Nothing))
 
     setupExec = setup
 
     finishExec run_ctx ctx@(Daemon _ m _) = do
+        let log_ctx = run_ctx ^. runCtxLogger
         liftIO (stopManager m)
 
-        case fsDirJoin (fsDirRoot ctx) [fsDirMetadata ctx] of
-            Nothing -> pass
-            Just d  -> do
-                AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvFSNotifyUnWatch (toText (toFilePath d)))
+        let fp = fsDirJoin (fsDirRoot ctx) [fsDirMetadata ctx]
+
+        AMF.API.logAMFEvent log_ctx LogLevelTerse (AMFEvFSNotifyUnWatch (toText (toFilePath fp)))
 
         pure (Right ctx)
 
-configFilename :: ToString a => RunCtx ev env opts cfg -> a -> Path Rel File
+configFilename :: ToString a => RunCtx exec_ev ev env opts cfg -> a -> Path Rel File
 configFilename run_ctx pn = case (run_ctx ^. runCtxConfigParser) of
     ConfigParser ext _ -> case parseRelFile (toString (toString pn <> "." <> toString ext)) of
         Nothing -> [relfile|daemon.yaml|] -- TODO
         Just v  -> v
 
-setup :: (IsString a, MonadIO m, MonadEventLogger m, MonadFileSystemRead m) => RunCtx ev env opts cfg -> Daemon -> m (Either a Daemon)
+setup :: (IsString a, MonadIO m, MonadEventLogger m, MonadFileSystemRead m) => RunCtx EventDaemon ev env opts cfg -> Daemon -> m (Either a Daemon)
 setup run_ctx ctx@(Daemon pn m _) = do
     let maybe_dir = fsDirJoin (fsDirRoot ctx) [fsDirMetadata ctx]
     let fn        = configFilename run_ctx pn
@@ -76,38 +102,42 @@ setup run_ctx ctx@(Daemon pn m _) = do
     parse maybe_dir f
 
   where
-    parse (Just d) (Just fn) = do
+    parse (d) (fn) = do
         r <- readParseAndValidate run_ctx fn
         store d (toText (toFilePath fn)) r
-    parse Nothing _ = do
-        pure (Right (Daemon pn m Nothing))
 
     store _ _  (Left  err) = pure (Left ((show err)))
     store d fn (Right cfg) = do
+        let log_ctx = run_ctx ^. runCtxLogger
         storeX run_ctx fn cfg
         l <- liftIO (watchDir m (toFilePath d) (const True) (configChangeHandler run_ctx))
-        AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvFSNotifyWatch (toText (toFilePath d)))
-
+        AMF.API.logAMFEvent log_ctx LogLevelTerse (AMFEvFSNotifyWatch (toText (toFilePath d)))
+        AMF.API.logExecEvent log_ctx LogLevelTerse (EventDaemon)
         pure (Right (Daemon pn m (Just l)))
 
 
-storeX :: (MonadIO m, MonadEventLogger m) => RunCtx ev env opts cfg -> Text -> cfg -> m ()
+storeX :: (MonadIO m, MonadEventLogger m) => RunCtx exec_ev ev env opts cfg -> Text -> cfg -> m ()
 storeX run_ctx fn cfg = do
+    let log_ctx = run_ctx ^. runCtxLogger
     liftIO $ atomically $ modifyTVar' (run_ctx ^. runCtxConfig) $ \cfg_map -> do
         case Map.lookup fn cfg_map of
             Nothing -> Map.insert (fn) cfg cfg_map
             Just _  -> Map.adjust (\_ -> cfg) (fn) cfg_map
-    AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigStore)
+    AMF.API.logAMFEvent log_ctx LogLevelTerse (AMFEvConfigStore)
 
 readParseAndValidate
-    :: (Monad m, MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev env opts cfg -> Path b1 File -> m (Either ConfigParseErr cfg)
+    :: (Monad m, MonadIO m, MonadFileSystemRead m, MonadEventLogger m)
+    => RunCtx exec_ev ev env opts cfg
+    -> Path b1 File
+    -> m (Either ConfigParseErr cfg)
 readParseAndValidate run_ctx fp = do
+    let log_ctx = run_ctx ^. runCtxLogger
     maybe_read <- AMF.Types.FileSystem.readFile fp
-    AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigRead)
+    AMF.API.logAMFEvent log_ctx LogLevelTerse (AMFEvConfigRead)
     case maybe_read of
         Left  err      -> pure (Left (ConfigParseErrIO (show err)))
         Right contents -> do
-            AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigParse)
+            AMF.API.logAMFEvent log_ctx LogLevelTerse (AMFEvConfigParse)
             case (run_ctx ^. runCtxConfigParser) of
                 ConfigParser _ parser -> do
                     case pure (parser contents) of
@@ -120,9 +150,10 @@ readParseAndValidate run_ctx fp = do
                                     pure (validationToEither (v c))
 
 
-configChangeHandler :: (MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx ev env opts cfg -> Event -> m ()
+configChangeHandler :: (MonadIO m, MonadFileSystemRead m, MonadEventLogger m) => RunCtx exec_ev ev env opts cfg -> Event -> m ()
 configChangeHandler run_ctx fs_ev = do
-    AMF.API.logAMFEvent run_ctx LogLevelTerse (AMFEvConfigFSEvent fs_ev)
+    let log_ctx = run_ctx ^. runCtxLogger
+    AMF.API.logAMFEvent log_ctx LogLevelTerse (AMFEvConfigFSEvent fs_ev)
     whenJust (parseAbsFile (eventPath fs_ev)) $ \fp -> do
         maybe_cfg <- readParseAndValidate run_ctx fp
         case maybe_cfg of
@@ -134,5 +165,8 @@ configChangeHandler run_ctx fs_ev = do
     pass
 
 
-runAppSpecAsDaemon :: (Eventable ev, Envy.FromEnv env, Show ev, Show cfg) => AppSpec IO Daemon ev env opts cfg a -> IO ()
-runAppSpecAsDaemon = runAppSpec
+runAppSpecAsDaemon :: (Eventable ev, Envy.FromEnv env, Show ev, Show cfg) => AppSpec IO Daemon EventDaemon ev env opts cfg a -> IO ()
+runAppSpecAsDaemon app = do
+    log_cfg <- newConfig newEmptyOutputs
+    logger  <- newLoggingCtx log_cfg
+    runAppSpec app logger

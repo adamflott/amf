@@ -47,13 +47,6 @@ packages:
   original:
     hackage: dockerfile-creator-0.1.0.0@sha256:704e12cd2e3f07ec6704c6a2739a2e5129cea8abd08fa5c519cfc9dd346b97bf,2108
 - completed:
-    hackage: ip-1.7.2@sha256:2148bbc7b5e66ea7273b6014bb30483cc656b2cd4e53efaf165c2223bdbbeb46,3742
-    pantry-tree:
-      size: 1437
-      sha256: c60e78361b92eebfa341027377787e39de5a16218ab605456cf4cf1de5f58b2a
-  original:
-    hackage: ip-1.7.2@sha256:2148bbc7b5e66ea7273b6014bb30483cc656b2cd4e53efaf165c2223bdbbeb46,3742
-- completed:
     hackage: natural-arithmetic-0.1.2.0@sha256:ac25a0561c8378530a62f02df83680afb193ed1059bb43e3130e0074b5b3f16b,3411
     pantry-tree:
       size: 716
@@ -137,6 +130,28 @@ packages:
       sha256: b0fd9a2cc8d051d9966c859ab03b5dd6e040cd53e68ee6562888c18f276f7446
   original:
     hackage: turtle-1.5.21
+- completed:
+    name: wide-word
+    version: 0.1.1.1
+    git: https://github.com/erikd/wide-word
+    pantry-tree:
+      size: 1051
+      sha256: dc8fef7ff3af17fd9dcd60ac9646a66bc30abe6b26d91b8c3a988de133223959
+    commit: 1a17095fc74db7f20db361642313d5e53ffd1eb7
+  original:
+    git: https://github.com/erikd/wide-word
+    commit: 1a17095fc74db7f20db361642313d5e53ffd1eb7
+- completed:
+    name: ip
+    version: 1.7.2
+    git: https://github.com/adamflott/haskell-ip
+    pantry-tree:
+      size: 1729
+      sha256: 4f59af56da8ee0c1435064f9f95e5261e661c945b7bc9eefe10312aca86046d0
+    commit: 32a88e515a14099e9d1ea668a4304e189dd6f7db
+  original:
+    git: https://github.com/adamflott/haskell-ip
+    commit: 32a88e515a14099e9d1ea668a4304e189dd6f7db
 snapshots:
 - completed:
     size: 558061

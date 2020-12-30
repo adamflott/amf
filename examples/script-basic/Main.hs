@@ -7,10 +7,6 @@ import           Turtle                         ( (</>)
                                                 )
 import           Turtle.Prelude
 
-
-type AppCtx = RunCtx NoEvent NoEnv NoOpts NoConfig
-
-
 --------------------------------------------------------------------------------
 
 myAppMain _exec _run_ctx _opts _st = do
@@ -25,7 +21,7 @@ myAppMain _exec _run_ctx _opts _st = do
 
 --------------------------------------------------------------------------------
 
-app :: (AllAppConstraints m) => AppSpec m e NoEvent NoEnv NoOpts NoConfig ()
+app :: (AllAppConstraints m) => AppSpec m e ev NoEvent NoEnv NoOpts NoConfig ()
 app = defaultAppSpec { appName = "amf-script-basic", appSetup = noAppSetup, appMain = myAppMain, appEnd = noAppFinish }
 
 main :: IO ()

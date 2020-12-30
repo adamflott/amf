@@ -123,7 +123,7 @@ instance MonadFileSystemWrite IO where
             Left  err -> pure (Just err)
             Right _   -> pure Nothing
 
-    writeFile path contents = (pure (Right "write blah"))
+    writeFile _path _contents = (pure (Right "write blah"))
 
     createDirectory dir = tryIO (PIO.createDirIfMissing True dir)
 
